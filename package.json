@@ -1,0 +1,31 @@
+{
+  "name": "fbm-sniper-community",
+  "version": "0.1.0",
+  "description": "Open-source Facebook Marketplace sniper — the free community edition of FBM Sniper.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "seed": "node lib/seed-sample-data.js",
+    "scan": "node lib/scanner.js",
+    "scan:test": "node lib/scanner.js --test",
+    "ui": "node server.cjs",
+    "desktop": "electron electron.cjs",
+    "check": "node --check lib/scanner.js && node --check lib/fb-scraper.js && node --check lib/fb-session.js && node -e \"require('./server.cjs')\" && node -e \"require('./electron.cjs').toString\""
+  },
+  "dependencies": {
+    "axios": "^1.6.5",
+    "chalk": "^5.3.0",
+    "dayjs": "^1.11.10",
+    "express": "^4.22.1",
+    "puppeteer": "^24.40.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "electron": "^41.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

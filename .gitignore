@@ -1,0 +1,22 @@
+node_modules/
+dist/
+out/
+
+# Runtime data — keep the directory, drop the generated contents
+data/*
+!data/.gitkeep
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
