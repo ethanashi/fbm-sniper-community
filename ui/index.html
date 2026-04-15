@@ -44,9 +44,9 @@
 
       <div class="upgrade-banner" id="upgradeBanner">
         <div>
-          <strong>Community Edition</strong> — up to 3 active targets, 3-minute minimum scan interval, rules-only grading.
+          <strong>New here?</strong> Join the Discord for setup help, full how-to guides, and to post your best flips.
         </div>
-        <a href="https://gumroad.com/" target="_blank" rel="noopener" class="btn btn-upgrade">Upgrade to Pro</a>
+        <a href="https://discord.gg/BkpQSnth4C" target="_blank" rel="noopener" class="btn btn-upgrade">Join the Discord</a>
       </div>
 
       <h2>Process</h2>
@@ -61,7 +61,7 @@
       <div class="toolbar">
         <button class="btn btn-primary" onclick="openAddTarget()">+ Add Target</button>
         <span class="live-pill">Live watchlist</span>
-        <span class="limit-pill" id="limitPill">Active: 0/3</span>
+        <span class="limit-pill" id="limitPill">Active: 0/10</span>
       </div>
       <div id="watchGroupFilters" class="filter-row"></div>
       <div id="watchlistCards"></div>
@@ -102,7 +102,7 @@
           </p>
           <div class="settings-hints">
             <span class="hint-pill"><code>group</code> creates UI buckets and filters</span>
-            <span class="hint-pill"><code>enabled</code> turns targets on or off (max 3 active)</span>
+            <span class="hint-pill"><code>enabled</code> turns targets on or off (max 10 active)</span>
             <span class="hint-pill"><code>mustInclude</code> / <code>mustAvoid</code> are hard keyword filters</span>
           </div>
         </div>
@@ -179,12 +179,12 @@
         <section class="settings-panel pro-panel">
           <div class="settings-top">
             <div>
-              <h3>Pro Features <span class="pro-pill">Locked</span></h3>
+              <h3>Need help? <span class="pro-pill">Discord</span></h3>
               <div class="settings-sub">
-                AI photo grading, AI target generator, unlimited targets, sub-3-minute scans, and Telegram/Discord alerts are available in FBM Sniper Pro.
+                Full setup guides, live Q&amp;A, and a place to post your best flips. If you just got bot access, start here.
               </div>
             </div>
-            <a href="https://gumroad.com/" target="_blank" rel="noopener" class="btn btn-upgrade">Upgrade to Pro</a>
+            <a href="https://discord.gg/BkpQSnth4C" target="_blank" rel="noopener" class="btn btn-upgrade">Join the Discord</a>
           </div>
         </section>
 
@@ -204,7 +204,7 @@
             <div class="settings-top">
               <div>
                 <h3>Targets</h3>
-                <div class="settings-sub">Define what you want to snipe. Up to 3 can be enabled at a time.</div>
+                <div class="settings-sub">Define what you want to snipe. Up to 10 can be enabled at a time.</div>
               </div>
               <button class="btn btn-primary" onclick="saveSettings()">Save</button>
             </div>
@@ -252,7 +252,7 @@
       </div>
       <div class="drawer-body">
         <div class="drawer-hint pro-hint">
-          💡 <strong>Pro tip:</strong> FBM Sniper Pro includes an AI target generator — describe what you want in plain English and it writes the JSON for you. <a href="https://gumroad.com/" target="_blank" rel="noopener">Upgrade →</a>
+          💡 <strong>Stuck on target JSON?</strong> The <code>#how-to-use-bot</code> channel in the Discord has a full walkthrough with examples. <a href="https://discord.gg/BkpQSnth4C" target="_blank" rel="noopener">Join the Discord →</a>
         </div>
 
         <div id="drawerManualTab" style="display:flex;flex-direction:column;gap:.75rem">

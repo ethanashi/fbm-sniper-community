@@ -182,7 +182,7 @@ async function refreshStatus() {
     setText("watchlistSummary", `${data.watchlistCount ?? 0} targets across ${g} group${g === 1 ? "" : "s"}`);
     const limits = data.limits || {};
     const enabled = limits.enabledCount ?? 0;
-    const max = limits.maxActiveTargets ?? 3;
+    const max = limits.maxActiveTargets ?? 10;
     const pill = document.getElementById("limitPill");
     if (pill) {
       pill.textContent = `Active: ${enabled}/${max}`;

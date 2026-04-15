@@ -5,11 +5,12 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const MAX_ACTIVE_TARGETS = 3;
-const UPGRADE_NOTE = "Community edition limits active targets to 3. Upgrade to Pro for unlimited.";
+const MAX_ACTIVE_TARGETS = 10;
+const LIMIT_NOTE = "Max active targets reached (10). Disable a target to enable another.";
 
 const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, "data");
+// When packaged via Electron, FBM_DATA_DIR points to app.getPath('userData').
+const DATA_DIR = process.env.FBM_DATA_DIR || path.join(ROOT, "data");
 const UI_DIR = path.join(ROOT, "ui");
 const FOUND_FILE = path.join(DATA_DIR, "found_listings.ndjson");
 const REJECTED_FILE = path.join(DATA_DIR, "rejected_listings.csv");
@@ -27,10 +28,14 @@ const wss = new WebSocketServer({ server });
 app.use(express.json());
 app.use(express.static(UI_DIR));
 
+// When running inside Electron (packaged or dev), use Electron's bundled Node
+// so end users don't need Node.js installed on their machine.
+const IS_ELECTRON = !!process.versions.electron;
+
 const PROCESSES = {
   "car-sniper": {
     label: "FBM Sniper",
-    cmd: "node",
+    cmd: process.execPath,
     args: ["lib/scanner.js"],
     proc: null,
     stopping: false,
@@ -79,6 +84,9 @@ function startProcess(name, extraArgs = []) {
     cwd: ROOT,
     env: {
       ...process.env,
+      // ELECTRON_RUN_AS_NODE makes the Electron binary behave as plain Node.js,
+      // so the scanner runs without requiring system Node to be installed.
+      ...(IS_ELECTRON ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
       ...proxyEnv,
     },
   });
@@ -377,7 +385,7 @@ function buildLimits(watchlist) {
     maxActiveTargets: MAX_ACTIVE_TARGETS,
     enabledCount: enabled,
     atLimit: enabled >= MAX_ACTIVE_TARGETS,
-    upgradeNote: UPGRADE_NOTE,
+    limitNote: LIMIT_NOTE,
   };
 }
 
@@ -435,7 +443,7 @@ app.post("/api/watchlist/toggle", (req, res) => {
   if (willEnable && list[index].enabled === false) {
     const enabledCount = countEnabled(list);
     if (enabledCount >= MAX_ACTIVE_TARGETS) {
-      return res.status(403).json({ error: UPGRADE_NOTE, code: "target_limit" });
+      return res.status(403).json({ error: LIMIT_NOTE, code: "target_limit" });
     }
   }
 
@@ -607,7 +615,7 @@ app.post("/api/watchlist/add", (req, res) => {
     ok: true,
     target: updated.find((target) => target.id === sanitizedTarget.id) || sanitizedTarget,
     limitReached: sanitizedTarget.enabled === false,
-    upgradeNote: sanitizedTarget.enabled === false ? UPGRADE_NOTE : undefined,
+    limitNote: sanitizedTarget.enabled === false ? LIMIT_NOTE : undefined,
   });
 });
 

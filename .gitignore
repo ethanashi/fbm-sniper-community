@@ -1,6 +1,7 @@
 node_modules/
 dist/
 out/
+puppeteer-cache/
 
 # Runtime data — keep the directory, drop the generated contents
 data/*
