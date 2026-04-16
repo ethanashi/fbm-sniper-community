@@ -14,7 +14,8 @@
     "check": "node --check lib/scanner.js && node --check lib/fb-scraper.js && node --check lib/fb-session.js && node -e \"require('./server.cjs')\" && node -e \"require('./electron.cjs').toString\"",
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
-    "build:all": "electron-builder --mac --win"
+    "build:win:local": "node build/build-win-local.cjs",
+    "build:all": "npm run build:mac && npm run build:win:local"
   },
   "dependencies": {
     "axios": "^1.6.5",

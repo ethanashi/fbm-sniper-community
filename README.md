@@ -39,8 +39,9 @@ Head to the [Releases page](https://github.com/ethanashi/fbm-sniper-community/re
 
 | Platform | File |
 | --- | --- |
-| Mac (Apple Silicon — M1/M2/M3/M4) | `FBM.Sniper.Community-0.1.0-arm64.dmg` |
-| Mac (Intel) | `FBM.Sniper.Community-0.1.0.dmg` |
+| Mac (Apple Silicon — M1/M2/M3/M4) | `FBM Sniper Community-0.1.0-arm64.dmg` |
+| Mac (Intel) | `FBM Sniper Community-0.1.0.dmg` |
+| Windows (x64) | `FBM Sniper Community Setup 0.1.0.exe` |
 
 Double-click the `.dmg`, drag the app to `/Applications`, and open it. On first launch it will download Chrome automatically (~150 MB, one-time). After that it starts instantly.
 
@@ -53,6 +54,10 @@ xattr -cr "/Applications/FBM Sniper Community.app"
 ```
 
 Then open the app normally. You only need to do this once.
+
+### Windows SmartScreen warning
+
+The Windows build is unsigned, so SmartScreen may show a "Windows protected your PC" prompt on first launch. Click **More info** and then **Run anyway** to open the app.
 
 **Want to build from source instead?** See the [developer setup](#developer-setup) section below.
 
@@ -78,6 +83,18 @@ If you prefer the CLI:
 ```bash
 npm run scan        # continuous scan loop
 npm run scan:test   # one-shot test scan, then exit
+```
+
+For packaged desktop release builds:
+
+```bash
+npm run build:all
+```
+
+On Apple Silicon Macs, install `makensis` once first:
+
+```bash
+brew install makensis
 ```
 
 ## Configuring targets

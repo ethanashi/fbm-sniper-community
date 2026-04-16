@@ -30,14 +30,15 @@ Everything is local. There's no server you log into, no account, no data sent an
 
 ## 2. Installing it
 
-No Node.js or technical setup required. Go to the GitHub releases page and download the right file for your Mac:
+No Node.js or technical setup required. Go to the GitHub releases page and download the right file for your machine:
 
 **→ [github.com/ethanashi/fbm-sniper-community/releases](https://github.com/ethanashi/fbm-sniper-community/releases)**
 
-| Your Mac | File to download |
+| Platform | File to download |
 | --- | --- |
-| Apple Silicon (M1/M2/M3/M4) | `FBM.Sniper.Community-0.1.0-arm64.dmg` |
-| Intel Mac | `FBM.Sniper.Community-0.1.0.dmg` |
+| Apple Silicon Mac (M1/M2/M3/M4) | `FBM Sniper Community-0.1.0-arm64.dmg` |
+| Intel Mac | `FBM Sniper Community-0.1.0.dmg` |
+| Windows PC (x64) | `FBM Sniper Community Setup 0.1.0.exe` |
 
 Double-click the `.dmg`, drag the app to `/Applications`, and open it.
 
@@ -48,6 +49,8 @@ xattr -cr "/Applications/FBM Sniper Community.app"
 ```
 
 Then reopen the app. That's it — you won't need to do it again.
+
+**Windows SmartScreen warning?** The Windows build is also unsigned. If Windows says "Windows protected your PC", click **More info** and then **Run anyway**.
 
 **First launch:** the app will download Chrome automatically (~150 MB). You'll see a "Downloading Chrome" screen — this only happens once. After that, the app opens instantly every time.
 
