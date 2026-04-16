@@ -39,8 +39,8 @@ Head to the [Releases page](https://github.com/ethanashi/fbm-sniper-community/re
 
 | Platform | File |
 | --- | --- |
-| Mac (Apple Silicon — M1/M2/M3/M4) | `FBM.Sniper.Community-arm64.dmg` |
-| Mac (Intel) | `FBM.Sniper.Community.dmg` |
+| Mac (Apple Silicon — M1/M2/M3/M4) | `FBM.Sniper.Community-0.1.0-arm64.dmg` |
+| Mac (Intel) | `FBM.Sniper.Community-0.1.0.dmg` |
 
 Double-click the `.dmg`, drag the app to `/Applications`, and open it. On first launch it will download Chrome automatically (~150 MB, one-time). After that it starts instantly.
 

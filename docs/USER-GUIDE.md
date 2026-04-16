@@ -36,8 +36,8 @@ No Node.js or technical setup required. Go to the GitHub releases page and downl
 
 | Your Mac | File to download |
 | --- | --- |
-| Apple Silicon (M1/M2/M3/M4) | `FBM.Sniper.Community-arm64.dmg` |
-| Intel Mac | `FBM.Sniper.Community.dmg` |
+| Apple Silicon (M1/M2/M3/M4) | `FBM.Sniper.Community-0.1.0-arm64.dmg` |
+| Intel Mac | `FBM.Sniper.Community-0.1.0.dmg` |
 
 Double-click the `.dmg`, drag the app to `/Applications`, and open it.
 
