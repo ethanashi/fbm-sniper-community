@@ -41,6 +41,14 @@ No Node.js or technical setup required. Go to the GitHub releases page and downl
 
 Double-click the `.dmg`, drag the app to `/Applications`, and open it.
 
+**"App is damaged" on first open?** The app isn't signed with an Apple Developer ID, so macOS Gatekeeper throws a scary-sounding warning. It's not actually damaged. Open Terminal and run this once:
+
+```bash
+xattr -cr "/Applications/FBM Sniper Community.app"
+```
+
+Then reopen the app. That's it — you won't need to do it again.
+
 **First launch:** the app will download Chrome automatically (~150 MB). You'll see a "Downloading Chrome" screen — this only happens once. After that, the app opens instantly every time.
 
 **After Chrome downloads:** a browser window will open and ask you to log into Facebook. Do that — the scanner needs an authenticated session to pull listings. Once you're logged in, close that window and you're ready to configure your targets and start scanning.

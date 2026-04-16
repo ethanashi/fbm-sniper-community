@@ -44,6 +44,16 @@ Head to the [Releases page](https://github.com/ethanashi/fbm-sniper-community/re
 
 Double-click the `.dmg`, drag the app to `/Applications`, and open it. On first launch it will download Chrome automatically (~150 MB, one-time). After that it starts instantly.
 
+### macOS "app is damaged" warning
+
+The app isn't signed with an Apple Developer ID, so macOS Gatekeeper flags it on first launch. **The app is not actually damaged** — this is just the standard unsigned-app warning. To get past it, open Terminal and run:
+
+```bash
+xattr -cr "/Applications/FBM Sniper Community.app"
+```
+
+Then open the app normally. You only need to do this once.
+
 **Want to build from source instead?** See the [developer setup](#developer-setup) section below.
 
 ## First launch

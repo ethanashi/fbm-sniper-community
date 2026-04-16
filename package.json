@@ -57,6 +57,9 @@
     ],
     "mac": {
       "category": "public.app-category.utilities",
+      "icon": "build/icon.png",
+      "identity": null,
+      "gatekeeperAssess": false,
       "target": [
         {
           "target": "dmg",
@@ -67,6 +70,7 @@
         }
       ]
     },
+    "afterPack": "build/after-pack.cjs",
     "dmg": {
       "title": "FBM Sniper Community",
       "contents": [
@@ -83,6 +87,7 @@
       ]
     },
     "win": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "nsis",
