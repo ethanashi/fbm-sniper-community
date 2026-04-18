@@ -69,13 +69,28 @@ test("buildDiscordEmbeds includes Vinted fee and seller details", () => {
     },
   }));
 
-  assert.equal(embeds.length, 1);
+  assert.equal(embeds.length, 2);
   assert.equal(embeds[0].color, 0xd4a72c);
+  assert.equal(embeds[0].image.url, "https://img.test/1.jpg");
+  assert.equal(embeds[1].image.url, "https://img.test/2.jpg");
   assert.deepEqual(
     embeds[0].fields.map((field) => ({ name: field.name, value: field.value })),
     [
-      { name: "Seller", value: "maria · 4.9 · 12 items" },
-      { name: "Fees", value: "Buyer protection €8 · shipping €6 · total €334 · verif €336" },
+      { name: "Platform", value: "vinted" },
+      { name: "Grade", value: "C" },
+      { name: "Listed", value: "EUR 320" },
+      { name: "Score", value: "80" },
+      { name: "Target", value: "iPhone 15 Pro" },
+      { name: "Group", value: "Phones" },
+      { name: "Max All-In", value: "EUR 382" },
+      { name: "Ceiling", value: "EUR 340" },
+      { name: "Savings", value: "EUR 20" },
+      { name: "Condition", value: "Very good" },
+      { name: "Battery", value: "89%" },
+      { name: "Photos", value: "2" },
+      { name: "Seller", value: "maria (4.9)" },
+      { name: "Seller Items", value: "12" },
+      { name: "Fees", value: "BP EUR 8 | Ship EUR 6 | Total EUR 334" },
     ],
   );
 });
