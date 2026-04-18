@@ -70,6 +70,7 @@ test("buildDiscordEmbeds includes Vinted fee and seller details", () => {
     },
   }));
 
+  assert.equal(embeds.length, 1);
   assert.equal(embeds[0].color, 0xd4a72c);
   assert.match(JSON.stringify(embeds[0].fields), /Seller/);
   assert.match(JSON.stringify(embeds[0].fields), /Fees/);
