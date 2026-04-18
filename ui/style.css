@@ -99,6 +99,42 @@ h2 {
   margin-bottom: .75rem;
 }
 
+/* ── Shared layout primitives ──────────────────────────────────────────────── */
+.platform-shell {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.hero-panel,
+.market-panel,
+.settings-panel,
+.log-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+
+.platform-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.deal-list {
+  display: grid;
+  gap: .85rem;
+}
+
+.deal-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  background: rgba(255, 255, 255, .02);
+}
+
 /* ── Stats grid ──────────────────────────────────────────────────────────────── */
 .stats-grid {
   display: grid;
@@ -785,6 +821,29 @@ h2 {
 }
 .settings-status.ok  { color: var(--green); }
 .settings-status.err { color: var(--red); }
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.form-field {
+  display: grid;
+  gap: .45rem;
+}
+
+.form-field label {
+  font-size: .78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.help-note {
+  color: var(--muted);
+  font-size: .84rem;
+}
 
 /* ── Quick Settings ───────────────────────────────────────────────────────────── */
 .proxy-warning {

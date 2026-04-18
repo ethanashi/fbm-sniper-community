@@ -10,10 +10,10 @@
   <header>
     <div class="brand">FBM Sniper <span class="edition-pill">Community</span></div>
     <nav>
-      <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
-      <button class="nav-btn" data-tab="watchlist">Watchlist</button>
-      <button class="nav-btn" data-tab="found">Found Listings</button>
-      <button class="nav-btn" data-tab="rejected">Rejected</button>
+      <button class="nav-btn active" data-tab="cars">Cars</button>
+      <button class="nav-btn" data-tab="facebook">Facebook</button>
+      <button class="nav-btn" data-tab="wallapop">Wallapop</button>
+      <button class="nav-btn" data-tab="vinted">Vinted</button>
       <button class="nav-btn" data-tab="settings">Settings</button>
       <button class="nav-btn" data-tab="logs">Logs</button>
     </nav>
@@ -21,216 +21,18 @@
   </header>
 
   <main>
-    <!-- DASHBOARD -->
-    <section class="tab active" id="tab-dashboard">
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-value" id="statBuyNow">–</div>
-          <div class="stat-label">Buy Now</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="statMaybe">–</div>
-          <div class="stat-label">Maybe</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="statAvgMargin">–</div>
-          <div class="stat-label">Avg Margin</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="statRecalls">–</div>
-          <div class="stat-label">Recall Flags</div>
-        </div>
-      </div>
-
-      <div class="upgrade-banner" id="upgradeBanner">
-        <div>
-          <strong>New here?</strong> Join the Discord for setup help, full how-to guides, and to post your best flips.
-        </div>
-        <a href="https://discord.gg/BkpQSnth4C" target="_blank" rel="noopener" class="btn btn-upgrade">Join the Discord</a>
-      </div>
-
-      <h2>Process</h2>
-      <div id="processGrid" class="process-grid"></div>
-
-      <h2 style="margin-top:2rem">Targets</h2>
-      <div class="watchlist-summary" id="watchlistSummary">Loading…</div>
-    </section>
-
-    <!-- WATCHLIST -->
-    <section class="tab" id="tab-watchlist">
-      <div class="toolbar">
-        <button class="btn btn-primary" onclick="openAddTarget()">+ Add Target</button>
-        <span class="live-pill">Live watchlist</span>
-        <span class="limit-pill" id="limitPill">Active: 0/10</span>
-      </div>
-      <div id="watchGroupFilters" class="filter-row"></div>
-      <div id="watchlistCards"></div>
-    </section>
-
-    <!-- FOUND -->
-    <section class="tab" id="tab-found">
-      <div class="toolbar">
-        <input id="foundSearch" class="search-box" type="text" placeholder="Filter by title / brand / model…" />
-        <select id="verdictFilter" class="filter-select">
-          <option value="">All verdicts</option>
-          <option value="buy_now">Buy Now</option>
-          <option value="maybe">Maybe</option>
-        </select>
-        <span class="live-pill">Live updates</span>
-      </div>
-      <div id="foundGroupFilters" class="filter-row"></div>
-      <div id="foundCards" class="card-grid"></div>
-    </section>
-
-    <!-- REJECTED -->
-    <section class="tab" id="tab-rejected">
-      <div class="toolbar">
-        <input id="rejectedSearch" class="search-box" type="text" placeholder="Filter rejected finds…" />
-        <span class="live-pill">Live updates</span>
-      </div>
-      <div id="rejectedGroupFilters" class="filter-row"></div>
-      <div id="rejectedCards" class="reject-grid"></div>
-    </section>
-
-    <!-- SETTINGS -->
-    <section class="tab" id="tab-settings">
-      <div class="settings-shell">
-        <div class="settings-intro">
-          <h2>Settings</h2>
-          <p class="settings-copy">
-            Use Quick Settings for the most common options. Edit the raw JSON below for advanced config or to manage targets.
-          </p>
-          <div class="settings-hints">
-            <span class="hint-pill"><code>group</code> creates UI buckets and filters</span>
-            <span class="hint-pill"><code>enabled</code> turns targets on or off (max 10 active)</span>
-            <span class="hint-pill"><code>mustInclude</code> / <code>mustAvoid</code> are hard keyword filters</span>
-          </div>
-        </div>
-
-        <!-- QUICK SETTINGS -->
-        <section class="settings-panel">
-          <div class="settings-top">
-            <div>
-              <h3>Quick Settings</h3>
-              <div class="settings-sub">Common options — no JSON editing required.</div>
-            </div>
-            <button class="btn btn-primary" onclick="saveQuickSettings()">Save</button>
-          </div>
-          <div id="proxyWarning" class="proxy-warning" style="display:none">
-            ⚠ No proxy configured — Facebook may block your IP after a few scans.
-          </div>
-          <div class="quick-row">
-            <div class="quick-field">
-              <label class="quick-label" for="qsInterval">Scan Cooldown (seconds)
-                <span class="quick-optional">(min 180)</span>
-              </label>
-              <input class="quick-input" type="number" id="qsInterval" min="180" step="30" placeholder="180" />
-            </div>
-            <div class="quick-field">
-              <label class="quick-label" for="qsRadius">Search Radius (km)</label>
-              <input class="quick-input" type="number" id="qsRadius" min="1" step="1" placeholder="120" />
-            </div>
-            <div class="quick-field">
-              <label class="quick-label" for="qsAllowShipping">Shippable Listings</label>
-              <select class="quick-input" id="qsAllowShipping">
-                <option value="true">Allowed</option>
-                <option value="false">Local only</option>
-              </select>
-            </div>
-            <div class="quick-field">
-              <label class="quick-label" for="qsLocationLabel">Location Label</label>
-              <input class="quick-input" type="text" id="qsLocationLabel" placeholder="Phoenix, AZ" />
-            </div>
-            <div class="quick-field">
-              <label class="quick-label" for="qsLatitude">Latitude</label>
-              <input class="quick-input" type="number" id="qsLatitude" step="0.0001" placeholder="33.4484" />
-            </div>
-            <div class="quick-field">
-              <label class="quick-label" for="qsLongitude">Longitude</label>
-              <input class="quick-input" type="number" id="qsLongitude" step="0.0001" placeholder="-112.0740" />
-            </div>
-            <div class="quick-field">
-              <label class="quick-label" for="qsSearchConcurrency">Search Workers</label>
-              <input class="quick-input" type="number" id="qsSearchConcurrency" min="1" max="8" step="1" placeholder="2" />
-            </div>
-            <div class="quick-field">
-              <label class="quick-label" for="qsDetailConcurrency">Detail Workers</label>
-              <input class="quick-input" type="number" id="qsDetailConcurrency" min="1" max="12" step="1" placeholder="3" />
-            </div>
-            <div class="quick-field quick-field-wide">
-              <label class="quick-label" for="qsProxy">
-                Proxy URL
-                <span class="quick-optional">(http://user:pass@host:port)</span>
-              </label>
-              <input class="quick-input" type="text" id="qsProxy"
-                placeholder="http://user:pass@host:port — leave blank if running without proxy"
-                oninput="updateProxyWarning()" />
-            </div>
-            <div class="quick-field quick-field-wide">
-              <label class="quick-label" for="qsProxyPool">
-                Proxy Pool
-                <span class="quick-optional">(one proxy URL per line, cycles automatically)</span>
-              </label>
-              <textarea class="quick-input quick-textarea" id="qsProxyPool" placeholder="http://user:pass@host:port" oninput="updateProxyWarning()"></textarea>
-            </div>
-          </div>
-        </section>
-
-        <section class="settings-panel pro-panel">
-          <div class="settings-top">
-            <div>
-              <h3>Need help? <span class="pro-pill">Discord</span></h3>
-              <div class="settings-sub">
-                Full setup guides, live Q&amp;A, and a place to post your best flips. If you just got bot access, start here.
-              </div>
-            </div>
-            <a href="https://discord.gg/BkpQSnth4C" target="_blank" rel="noopener" class="btn btn-upgrade">Join the Discord</a>
-          </div>
-        </section>
-
-        <div class="settings-grid">
-          <section class="settings-panel">
-            <div class="settings-top">
-              <div>
-                <h3>App Config</h3>
-                <div class="settings-sub">Full JSON — edit anything.</div>
-              </div>
-              <button class="btn btn-secondary" onclick="reloadSettings()">Reload</button>
-            </div>
-            <textarea id="configEditor" class="settings-editor" spellcheck="false"></textarea>
-          </section>
-
-          <section class="settings-panel">
-            <div class="settings-top">
-              <div>
-                <h3>Targets</h3>
-                <div class="settings-sub">Define what you want to snipe. Up to 10 can be enabled at a time.</div>
-              </div>
-              <button class="btn btn-primary" onclick="saveSettings()">Save</button>
-            </div>
-            <textarea id="watchlistEditor" class="settings-editor settings-editor-tall" spellcheck="false"></textarea>
-          </section>
-        </div>
-
-        <section class="settings-panel danger-panel">
-          <div class="settings-top">
-            <div>
-              <h3>Danger Zone</h3>
-              <div class="settings-sub">Wipe found listings, rejected log, and the seen-IDs dedupe cache. The sniper will re-process everything it sees next scan.</div>
-            </div>
-            <button class="btn btn-danger" onclick="resetMemory()">Reset Memory</button>
-          </div>
-        </section>
-
-        <div id="settingsStatus" class="settings-status"></div>
-      </div>
-    </section>
-
-    <!-- LOGS -->
+    <section class="tab active" id="tab-cars"><div id="carsPanel"></div></section>
+    <section class="tab" id="tab-facebook"><div id="facebookPanel"></div></section>
+    <section class="tab" id="tab-wallapop"><div id="wallapopPanel"></div></section>
+    <section class="tab" id="tab-vinted"><div id="vintedPanel"></div></section>
+    <section class="tab" id="tab-settings"><div id="sharedSettingsPanel"></div></section>
     <section class="tab" id="tab-logs">
       <div class="toolbar">
         <select id="logProcess" class="filter-select">
-            <option value="car-sniper">FBM Sniper</option>
+          <option value="car-sniper">Cars</option>
+          <option value="facebook-sniper">Facebook</option>
+          <option value="wallapop-sniper">Wallapop</option>
+          <option value="vinted-sniper">Vinted</option>
         </select>
         <label class="autoscroll">
           <input type="checkbox" id="autoScroll" checked />
