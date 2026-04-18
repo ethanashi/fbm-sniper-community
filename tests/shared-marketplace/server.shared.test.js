@@ -34,22 +34,15 @@ test("GET /api/shared/found/:platform returns newest-first deals", async () => {
 
 test("POST /api/process/facebook-sniper/start uses the named route alias", async () => {
   const port = await startServer(0);
-  let started = false;
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/process/facebook-sniper/start`, {
       method: "POST",
     });
     assert.equal(response.status, 200);
-    started = true;
 
     const data = await response.json();
     assert.equal(data.ok, true);
   } finally {
-    if (started) {
-      await fetch(`http://127.0.0.1:${port}/api/process/facebook-sniper/stop`, {
-        method: "POST",
-      }).catch(() => {});
-    }
     await stopServer();
   }
 });
