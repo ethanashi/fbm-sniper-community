@@ -5,6 +5,7 @@ import {
   resolveNotificationConfig,
   selectDiscordTargets,
   buildDiscordEmbeds,
+  notify,
 } from "../../lib/shared-marketplace/notifier.js";
 
 test("resolveNotificationConfig keeps Discord optional", () => {
@@ -58,7 +59,7 @@ test("buildDiscordEmbeds includes Vinted fee and seller details", () => {
     fees: { buyerProtection: 8, shipping: 6, total: 334, totalWithVerif: 336 },
     seller: { name: "maria", rating: 4.9, item_count: 12 },
     item: {
-      photos: [{ full_size_url: "https://img.test/1.jpg" }, { full_size_url: "https://img.test/2.jpg" }],
+      photos: [{ full_size_url: "https://img.test/1.jpg" }, { full_url: "https://img.test/2.jpg" }],
     },
     target: { label: "iPhone 15 Pro", group: "Phones" },
   }, resolveNotificationConfig({
@@ -93,4 +94,76 @@ test("buildDiscordEmbeds includes Vinted fee and seller details", () => {
       { name: "Fees", value: "BP EUR 8 | Ship EUR 6 | Total EUR 334" },
     ],
   );
+});
+
+test("notify returns a no-op result when Discord is unconfigured", async () => {
+  let postCalls = 0;
+
+  const result = await notify(
+    { grade: "B", url: "https://listing.test/1" },
+    {
+      config: resolveNotificationConfig({ notifications: {} }),
+      post: async () => {
+        postCalls += 1;
+      },
+    },
+  );
+
+  assert.deepEqual(result, { sent: false, routes: [] });
+  assert.equal(postCalls, 0);
+});
+
+test("notify dedupes matching routes and posts without real network calls", async () => {
+  const deliveries = [];
+  const browserOpens = [];
+
+  const result = await notify(
+    {
+      grade: "B",
+      title: "iPhone 15 Pro",
+      url: "https://listing.test/2",
+      listing_price: 300,
+      score: 92,
+      target: { label: "iPhone 15 Pro", group: "Phones" },
+    },
+    {
+      config: resolveNotificationConfig({
+        notifications: {
+          discord: {
+            allWebhookUrl: "https://discord.test/shared",
+            buyNowWebhookUrl: "https://discord.test/shared",
+            maybeWebhookUrl: "https://discord.test/maybe",
+          },
+        },
+      }),
+      post: async (webhookUrl, payload, options) => {
+        deliveries.push({ webhookUrl, payload, options });
+      },
+      openBrowser: (url, notifications) => {
+        browserOpens.push({ url, notifications });
+      },
+    },
+  );
+
+  assert.deepEqual(result, { sent: true, routes: ["All Deals"] });
+  assert.equal(deliveries.length, 1);
+  assert.equal(deliveries[0].webhookUrl, "https://discord.test/shared");
+  assert.equal(deliveries[0].options.timeout, 15000);
+  assert.equal(deliveries[0].payload.embeds[0].title, "iPhone 15 Pro");
+  assert.deepEqual(deliveries[0].payload.components, [{
+    type: 1,
+    components: [{ type: 2, style: 5, label: "Open Listing", url: "https://listing.test/2" }],
+  }]);
+  assert.deepEqual(browserOpens, [{
+    url: "https://listing.test/2",
+    notifications: resolveNotificationConfig({
+      notifications: {
+        discord: {
+          allWebhookUrl: "https://discord.test/shared",
+          buyNowWebhookUrl: "https://discord.test/shared",
+          maybeWebhookUrl: "https://discord.test/maybe",
+        },
+      },
+    }),
+  }]);
 });
