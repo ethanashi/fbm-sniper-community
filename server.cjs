@@ -189,13 +189,6 @@ function stopProcess(name) {
   return { ok: true };
 }
 
-function waitForProcessExit(proc) {
-  return new Promise((resolve) => {
-    proc.once("close", resolve);
-    proc.once("error", resolve);
-  });
-}
-
 function parseCSVRows(file) {
   try {
     const text = fs.readFileSync(file, "utf8").trim();
@@ -822,13 +815,6 @@ async function stopServer() {
     server.removeListener("error", listenErrorHandler);
     listenErrorHandler = null;
   }
-  const shutdowns = [];
-  for (const [name, def] of Object.entries(PROCESSES)) {
-    if (!def.proc) continue;
-    shutdowns.push(waitForProcessExit(def.proc));
-    stopProcess(name);
-  }
-  await Promise.all(shutdowns);
   for (const file of watchedFiles) {
     fs.unwatchFile(file);
   }
