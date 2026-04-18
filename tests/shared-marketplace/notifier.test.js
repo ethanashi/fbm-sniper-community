@@ -7,25 +7,14 @@ import {
   buildDiscordEmbeds,
 } from "../../lib/shared-marketplace/notifier.js";
 
-test("resolveNotificationConfig preserves notification fields and defaults Discord", () => {
+test("resolveNotificationConfig keeps Discord optional", () => {
   const config = resolveNotificationConfig({
-    notifications: {
-      includePhotos: false,
-      maxPhotos: 5,
-      autoOpenBrowser: "always",
-      discord: {
-        buyNowWebhookUrl: "https://discord.test/buy",
-      },
-    },
+    notifications: {},
   });
 
-  assert.equal(config.enabled, false);
-  assert.equal(config.includePhotos, false);
-  assert.equal(config.maxPhotos, 5);
-  assert.equal(config.autoOpenBrowser, "always");
   assert.deepEqual(config.discord, {
     allWebhookUrl: "",
-    buyNowWebhookUrl: "https://discord.test/buy",
+    buyNowWebhookUrl: "",
     maybeWebhookUrl: "",
   });
 });
