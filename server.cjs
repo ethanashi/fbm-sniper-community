@@ -252,12 +252,16 @@ function readNdjsonTail(file, limit = 50) {
   try {
     const text = fs.readFileSync(file, "utf8").trim();
     if (!text) return [];
-    return text
-      .split("\n")
-      .filter(Boolean)
-      .slice(-limit)
-      .map((line) => JSON.parse(line))
-      .reverse();
+    const entries = [];
+    const lines = text.split("\n").filter(Boolean);
+    for (let index = lines.length - 1; index >= 0 && entries.length < limit; index -= 1) {
+      try {
+        entries.push(JSON.parse(lines[index]));
+      } catch {
+        // Skip malformed or partially-written NDJSON lines and keep valid entries.
+      }
+    }
+    return entries;
   } catch {
     return [];
   }
