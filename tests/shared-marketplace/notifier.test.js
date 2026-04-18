@@ -13,15 +13,15 @@ test("resolveNotificationConfig keeps Discord optional", () => {
       includePhotos: true,
       maxPhotos: 3,
       autoOpenBrowser: "default",
-      discord: {
-        allWebhookUrl: "",
-        buyNowWebhookUrl: "",
-        maybeWebhookUrl: "",
-      },
     },
   });
 
   assert.equal(config.enabled, false);
+  assert.deepEqual(config.discord, {
+    allWebhookUrl: "",
+    buyNowWebhookUrl: "",
+    maybeWebhookUrl: "",
+  });
   assert.equal(config.discord.allWebhookUrl, "");
   assert.equal(config.maxPhotos, 3);
 });
