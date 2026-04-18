@@ -426,7 +426,9 @@ function buildLimits(watchlist) {
 }
 
 let watchersStarted = false;
+const watchedFiles = new Set();
 function watchDataFile(file, eventType) {
+  watchedFiles.add(file);
   fs.watchFile(file, { interval: 1500 }, (curr, prev) => {
     if (curr.mtimeMs === 0 || curr.mtimeMs === prev.mtimeMs) return;
     broadcast({ type: eventType, ts: Date.now() });
@@ -795,7 +797,18 @@ async function startServer(port) {
   });
 }
 
-module.exports = { startServer };
+async function stopServer() {
+  for (const file of watchedFiles) {
+    fs.unwatchFile(file);
+  }
+  watchedFiles.clear();
+  watchersStarted = false;
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+module.exports = { startServer, stopServer };
 
 if (require.main === module) {
   const port = process.env.PORT ? Number(process.env.PORT) : 3340;
