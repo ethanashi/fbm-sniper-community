@@ -40,7 +40,43 @@ const PROCESSES = {
     proc: null,
     stopping: false,
   },
+  "facebook-sniper": {
+    label: "Facebook Sniper",
+    cmd: process.execPath,
+    args: ["lib/facebook-sniper.js"],
+    proc: null,
+    stopping: false,
+  },
+  "wallapop-sniper": {
+    label: "Wallapop Sniper",
+    cmd: process.execPath,
+    args: ["lib/wallapop-sniper.js"],
+    proc: null,
+    stopping: false,
+  },
+  "vinted-sniper": {
+    label: "Vinted Sniper",
+    cmd: process.execPath,
+    args: ["lib/vinted-sniper.js"],
+    proc: null,
+    stopping: false,
+  },
 };
+
+let workspace = null;
+async function initWorkspace() {
+  if (workspace) return workspace;
+  workspace = await import("./lib/shared-marketplace/workspace.js");
+  workspace.ensureWorkspaceFiles();
+  return workspace;
+}
+function requireWorkspace(res) {
+  if (!workspace) {
+    res.status(503).json({ error: "workspace not initialized" });
+    return null;
+  }
+  return workspace;
+}
 
 const logs = {};
 const stopTimers = {};
@@ -619,6 +655,118 @@ app.post("/api/watchlist/add", (req, res) => {
   });
 });
 
+app.get("/api/shared/settings", (_req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const config = ws.loadWorkspaceConfig();
+  const watchlist = ws.loadWorkspaceWatchlist();
+  res.json({
+    config,
+    watchlist,
+    groups: ws.buildWatchlistGroups(watchlist),
+  });
+});
+
+app.post("/api/shared/settings", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { config, watchlist } = req.body || {};
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return res.status(400).json({ error: "config must be an object" });
+  }
+  if (!Array.isArray(watchlist)) {
+    return res.status(400).json({ error: "watchlist must be an array" });
+  }
+  ws.saveWorkspaceConfig(config);
+  ws.saveWorkspaceWatchlist(watchlist);
+  broadcast({ type: "shared-config-updated", ts: Date.now() });
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true });
+});
+
+app.get("/api/shared/watchlist", (_req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  res.json(ws.loadWorkspaceWatchlist());
+});
+
+app.post("/api/shared/watchlist/add", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const entry = ws.normalizeWatchlistEntry(req.body?.target);
+  if (!entry) return res.status(400).json({ error: "invalid target object" });
+  const list = ws.loadWorkspaceWatchlist();
+  if (list.some((t) => t.id === entry.id)) entry.id = `${entry.id}-${Date.now()}`;
+  list.push(entry);
+  const saved = ws.saveWorkspaceWatchlist(list);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, target: saved.find((t) => t.id === entry.id) || entry });
+});
+
+app.post("/api/shared/watchlist/toggle", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { id, enabled } = req.body || {};
+  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
+  const list = ws.loadWorkspaceWatchlist();
+  const idx = list.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: "target not found" });
+  list[idx] = { ...list[idx], enabled: enabled !== false };
+  const saved = ws.saveWorkspaceWatchlist(list);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
+});
+
+app.post("/api/shared/watchlist/delete", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { id } = req.body || {};
+  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
+  const list = ws.loadWorkspaceWatchlist();
+  const filtered = list.filter((t) => t.id !== id);
+  if (filtered.length === list.length) return res.status(404).json({ error: "target not found" });
+  ws.saveWorkspaceWatchlist(filtered);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true });
+});
+
+app.post("/api/shared/watchlist/move", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { id, group } = req.body || {};
+  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
+  if (!group || typeof group !== "string" || !group.trim()) return res.status(400).json({ error: "group name is required" });
+  const list = ws.loadWorkspaceWatchlist();
+  const idx = list.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: "target not found" });
+  list[idx] = { ...list[idx], group: group.trim() };
+  const saved = ws.saveWorkspaceWatchlist(list);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
+});
+
+app.post("/api/shared/watchlist/rename-group", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { from, to } = req.body || {};
+  if (!from || !to || !String(from).trim() || !String(to).trim()) {
+    return res.status(400).json({ error: "from and to group names required" });
+  }
+  const fromName = String(from).trim();
+  const toName = String(to).trim();
+  const list = ws.loadWorkspaceWatchlist();
+  let changed = 0;
+  const updated = list.map((t) => {
+    if ((t.group || "General") !== fromName) return t;
+    changed += 1;
+    return { ...t, group: toName };
+  });
+  if (!changed) return res.status(404).json({ error: "group not found" });
+  const saved = ws.saveWorkspaceWatchlist(updated);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, changed, groups: ws.buildWatchlistGroups(saved) });
+});
+
 wss.on("connection", (ws) => {
   const processes = {};
   for (const [key, value] of Object.entries(PROCESSES)) {
@@ -636,7 +784,8 @@ wss.on("connection", (ws) => {
   }));
 });
 
-function startServer(port) {
+async function startServer(port) {
+  await initWorkspace();
   return new Promise((resolve, reject) => {
     server.on("error", reject);
     server.listen(port || 0, "127.0.0.1", () => {
