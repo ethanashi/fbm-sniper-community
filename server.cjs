@@ -427,6 +427,7 @@ function buildLimits(watchlist) {
 
 let watchersStarted = false;
 const watchedFiles = new Set();
+let listenErrorHandler = null;
 function watchDataFile(file, eventType) {
   watchedFiles.add(file);
   fs.watchFile(file, { interval: 1500 }, (curr, prev) => {
@@ -789,8 +790,20 @@ wss.on("connection", (ws) => {
 async function startServer(port) {
   await initWorkspace();
   return new Promise((resolve, reject) => {
-    server.on("error", reject);
+    if (listenErrorHandler) {
+      server.removeListener("error", listenErrorHandler);
+    }
+    listenErrorHandler = (error) => {
+      server.removeListener("error", listenErrorHandler);
+      listenErrorHandler = null;
+      reject(error);
+    };
+    server.on("error", listenErrorHandler);
     server.listen(port || 0, "127.0.0.1", () => {
+      if (listenErrorHandler) {
+        server.removeListener("error", listenErrorHandler);
+        listenErrorHandler = null;
+      }
       startWatchers();
       resolve(server.address().port);
     });
@@ -798,6 +811,10 @@ async function startServer(port) {
 }
 
 async function stopServer() {
+  if (listenErrorHandler) {
+    server.removeListener("error", listenErrorHandler);
+    listenErrorHandler = null;
+  }
   for (const file of watchedFiles) {
     fs.unwatchFile(file);
   }
