@@ -51,6 +51,7 @@
       "config/**/*",
       "node_modules/**/*",
       "!node_modules/.cache/**/*",
+      "!node_modules/puppeteer/puppeteer-cache/**/*",
       "!**/*.map",
       "!**/test/**/*",
       "!**/tests/**/*",
