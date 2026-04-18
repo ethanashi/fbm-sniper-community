@@ -17,6 +17,11 @@ const REJECTED_FILE = path.join(DATA_DIR, "rejected_listings.csv");
 const WATCHLIST_FILE = path.join(DATA_DIR, "watchlist.json");
 const CONFIG_FILE = path.join(DATA_DIR, "config.json");
 const SEEN_IDS_FILE = path.join(DATA_DIR, "seen_ids.json");
+const SHARED_FOUND_FILES = {
+  facebook: path.join(DATA_DIR, "facebook", "found.ndjson"),
+  wallapop: path.join(DATA_DIR, "wallapop", "found.ndjson"),
+  vinted: path.join(DATA_DIR, "vinted", "found.ndjson"),
+};
 const REJECTED_HEADERS = "timestamp,title,query,target_id,target_label,target_group,listing_price,reason,url,make,model,year,title_status\n";
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -243,6 +248,26 @@ function readFoundDeals() {
   }
 }
 
+function readNdjsonTail(file, limit = 50) {
+  try {
+    const text = fs.readFileSync(file, "utf8").trim();
+    if (!text) return [];
+    return text
+      .split("\n")
+      .filter(Boolean)
+      .slice(-limit)
+      .map((line) => JSON.parse(line))
+      .reverse();
+  } catch {
+    return [];
+  }
+}
+
+function getSharedPlatformFile(platform) {
+  const key = String(platform || "").trim().toLowerCase();
+  return SHARED_FOUND_FILES[key] || null;
+}
+
 function inferTargetType(target) {
   const explicit = String(target?.targetType || "").toLowerCase();
   if (explicit) return explicit;
@@ -428,11 +453,11 @@ function buildLimits(watchlist) {
 let watchersStarted = false;
 const watchedFiles = new Set();
 let listenErrorHandler = null;
-function watchDataFile(file, eventType) {
+function watchDataFile(file, eventType, extra = {}) {
   watchedFiles.add(file);
   fs.watchFile(file, { interval: 1500 }, (curr, prev) => {
     if (curr.mtimeMs === 0 || curr.mtimeMs === prev.mtimeMs) return;
-    broadcast({ type: eventType, ts: Date.now() });
+    broadcast({ type: eventType, ts: Date.now(), ...extra });
   });
 }
 
@@ -443,6 +468,9 @@ function startWatchers() {
   watchDataFile(FOUND_FILE, "car-found-updated");
   watchDataFile(REJECTED_FILE, "car-rejected-updated");
   watchDataFile(WATCHLIST_FILE, "car-watchlist-updated");
+  watchDataFile(SHARED_FOUND_FILES.facebook, "shared-found-updated", { platform: "facebook" });
+  watchDataFile(SHARED_FOUND_FILES.wallapop, "shared-found-updated", { platform: "wallapop" });
+  watchDataFile(SHARED_FOUND_FILES.vinted, "shared-found-updated", { platform: "vinted" });
 }
 
 app.get("/api/status", (_req, res) => {
@@ -594,6 +622,13 @@ app.get("/api/found", (_req, res) => {
   res.json(readFoundDeals());
 });
 
+app.get("/api/shared/found/:platform", (req, res) => {
+  const file = getSharedPlatformFile(req.params.platform);
+  if (!file) return res.status(400).json({ error: "unsupported platform" });
+  const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50) || 50));
+  res.json(readNdjsonTail(file, limit));
+});
+
 app.get("/api/rejected", (_req, res) => {
   res.json(readRejected());
 });
@@ -612,6 +647,14 @@ app.post("/api/process/start", (req, res) => {
 app.post("/api/process/stop", (req, res) => {
   const { process: name } = req.body;
   res.json(stopProcess(name));
+});
+
+app.post("/api/process/:name/start", (req, res) => {
+  res.json(startProcess(req.params.name));
+});
+
+app.post("/api/process/:name/stop", (req, res) => {
+  res.json(stopProcess(req.params.name));
 });
 
 app.post("/api/reset-memory", (_req, res) => {
@@ -815,9 +858,7 @@ async function stopServer() {
     server.removeListener("error", listenErrorHandler);
     listenErrorHandler = null;
   }
-  for (const file of watchedFiles) {
-    fs.unwatchFile(file);
-  }
+  for (const file of watchedFiles) fs.unwatchFile(file);
   watchedFiles.clear();
   watchersStarted = false;
   return new Promise((resolve, reject) => {
