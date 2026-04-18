@@ -7,16 +7,78 @@ let foundDeals = [];
 let rejectedDeals = [];
 let watchlist = [];
 let targetGroups = [];
+let sharedConfig = {};
+let sharedWatchlist = [];
+let sharedGroups = [];
+let carSettingsDirty = false;
+let sharedSettingsDirty = false;
+const sharedFoundDeals = {
+  facebook: [],
+  wallapop: [],
+  vinted: [],
+};
+let currentTopTab = "cars";
+let currentCarView = "overview";
 let currentLogProcess = "car-sniper";
 let currentWatchGroup = "all";
 let currentFoundGroup = "all";
 let currentRejectedGroup = "all";
 let foundReloadTimer = null;
 let rejectedReloadTimer = null;
+const sharedReloadTimers = {
+  facebook: null,
+  wallapop: null,
+  vinted: null,
+};
 const terminalBuffers = {};
 let activeDealModal = null;
 let activeTextPrompt = null;
 let draggedTargetId = null;
+
+const PLATFORM_META = {
+  facebook: {
+    label: "Facebook",
+    process: "facebook-sniper",
+    description: "Shared Facebook Marketplace sniper using the shared watchlist and Discord settings below.",
+  },
+  wallapop: {
+    label: "Wallapop",
+    process: "wallapop-sniper",
+    description: "Shared Wallapop polling loop with per-bot interval controls and recent matches.",
+  },
+  vinted: {
+    label: "Vinted",
+    process: "vinted-sniper",
+    description: "Shared Vinted loop with optional cookie override, photos, and Discord routing.",
+  },
+};
+
+const DEFAULT_SHARED_CONFIG = {
+  appName: "FBM Sniper Community",
+  proxy: "",
+  proxyPool: [],
+  location: {
+    label: "Madrid, Spain",
+    latitude: 40.4032,
+    longitude: -3.7037,
+  },
+  notifications: {
+    includePhotos: true,
+    maxPhotos: 3,
+    autoOpenBuyNow: false,
+    autoOpenBrowser: "default",
+    discord: {
+      allWebhookUrl: "",
+      buyNowWebhookUrl: "",
+      maybeWebhookUrl: "",
+    },
+  },
+  bots: {
+    facebook: { enabled: false, pollIntervalSec: 90 },
+    wallapop: { enabled: false, pollIntervalSec: 60 },
+    vinted: { enabled: false, pollIntervalSec: 45, cookie: "" },
+  },
+};
 
 /* ── Carousel state ─────────────────────────────────────────────────────────── */
 // cardId → current photo index
@@ -25,17 +87,57 @@ const photoIndexes = {};
 /* ── Tab navigation ─────────────────────────────────────────────────────────── */
 document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-    btn.classList.add("active");
-    document.getElementById(`tab-${btn.dataset.tab}`)?.classList.add("active");
-
-    if (btn.dataset.tab === "watchlist") loadWatchlist();
-    if (btn.dataset.tab === "found")     loadFoundDeals();
-    if (btn.dataset.tab === "rejected")  loadRejectedDeals();
-    if (btn.dataset.tab === "settings")  loadSettings();
+    setActiveTopTab(btn.dataset.tab);
   });
 });
+
+document.querySelectorAll(".car-subnav-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setActiveCarView(btn.dataset.carView);
+  });
+});
+
+function setActiveTopTab(tab) {
+  currentTopTab = tab;
+  document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
+  document.querySelectorAll(".tab").forEach((node) => node.classList.toggle("active", node.id === `tab-${tab}`));
+
+  if (tab === "cars") {
+    loadCarsViewData();
+    return;
+  }
+  if (tab === "settings") {
+    loadSharedSettings();
+    return;
+  }
+  if (tab === "logs") {
+    flushTerminal();
+    return;
+  }
+  if (PLATFORM_META[tab]) {
+    loadSharedFound(tab);
+    renderMarketplaceTab(tab);
+  }
+}
+
+function setActiveCarView(view) {
+  currentCarView = view;
+  document.querySelectorAll(".car-subnav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.carView === view));
+  document.querySelectorAll(".car-view").forEach((node) => node.classList.toggle("active", node.id === `car-view-${view}`));
+
+  if (view === "watchlist") loadWatchlist();
+  if (view === "found") loadFoundDeals();
+  if (view === "rejected") loadRejectedDeals();
+  if (view === "settings") loadSettings();
+}
+
+function loadCarsViewData() {
+  refreshStatus();
+  if (currentCarView === "watchlist") loadWatchlist();
+  if (currentCarView === "found") loadFoundDeals();
+  if (currentCarView === "rejected") loadRejectedDeals();
+  if (currentCarView === "settings") loadSettings();
+}
 
 /* ── WebSocket ──────────────────────────────────────────────────────────────── */
 function connectWS() {
@@ -43,12 +145,12 @@ function connectWS() {
   ws = new WebSocket(`${proto}://${location.host}`);
 
   ws.onopen = () => {
-    document.getElementById("wsIndicator").classList.add("connected");
+    document.getElementById("wsIndicator")?.classList.add("connected");
     clearTimeout(wsRetryTimer);
   };
 
   ws.onclose = () => {
-    document.getElementById("wsIndicator").classList.remove("connected");
+    document.getElementById("wsIndicator")?.classList.remove("connected");
     wsRetryTimer = setTimeout(connectWS, 3000);
   };
 
@@ -63,6 +165,7 @@ function connectWS() {
         entries.forEach((e) => appendLogLine(name, e.line, e.ts));
       });
       renderProcessGrid();
+      renderAllMarketplaceTabs();
       refreshStatus();
       return;
     }
@@ -71,6 +174,7 @@ function connectWS() {
       processState[msg.process].running  = msg.running;
       processState[msg.process].stopping = msg.stopping || false;
       renderProcessGrid();
+      renderAllMarketplaceTabs();
       return;
     }
 
@@ -94,6 +198,19 @@ function connectWS() {
     if (msg.type === "car-watchlist-updated" || msg.type === "car-config-updated") {
       loadSettings();
       refreshStatus();
+      return;
+    }
+
+    if (msg.type === "shared-config-updated" || msg.type === "shared-watchlist-updated") {
+      loadSharedSettings();
+      return;
+    }
+
+    if (msg.type === "shared-found-updated" && PLATFORM_META[msg.platform]) {
+      clearTimeout(sharedReloadTimers[msg.platform]);
+      sharedReloadTimers[msg.platform] = setTimeout(() => {
+        loadSharedFound(msg.platform);
+      }, 250);
     }
   };
 }
@@ -144,27 +261,28 @@ function renderProcessGrid() {
   if (!container) return;
   container.innerHTML = "";
 
-  Object.entries(processState).forEach(([name, info]) => {
-    const badgeClass = info.running ? (info.stopping ? "badge-stopping" : "badge-running") : "badge-stopped";
-    const badgeText  = info.running ? (info.stopping ? "Stopping" : "Running") : "Stopped";
-    const card = document.createElement("div");
-    card.className = "process-card";
-    card.innerHTML = `
-      <div class="process-header">
-        <div>
-          <div class="process-name">${escHtml(info.label)}</div>
-          <div class="process-desc">Community scan loop — targets from Settings</div>
-        </div>
-        <span class="badge ${badgeClass}">${badgeText}</span>
+  const info = processState["car-sniper"];
+  if (!info) return;
+
+  const badgeClass = info.running ? (info.stopping ? "badge-stopping" : "badge-running") : "badge-stopped";
+  const badgeText  = info.running ? (info.stopping ? "Stopping" : "Running") : "Stopped";
+  const card = document.createElement("div");
+  card.className = "process-card";
+  card.innerHTML = `
+    <div class="process-header">
+      <div>
+        <div class="process-name">${escHtml(info.label)}</div>
+        <div class="process-desc">Original community car scan loop with local watchlist, found, rejected, and config views.</div>
       </div>
-      <div class="process-actions">
-        <button class="btn btn-start"  ${info.running ? "disabled" : ""} onclick="startProcess('${name}')">Start</button>
-        <button class="btn btn-stop"   ${!info.running || info.stopping ? "disabled" : ""} onclick="stopProcess('${name}')">Stop</button>
-        <button class="btn btn-logs"   onclick="goToLogs('${name}')">Logs</button>
-      </div>
-    `;
-    container.appendChild(card);
-  });
+      <span class="badge ${badgeClass}">${badgeText}</span>
+    </div>
+    <div class="process-actions">
+      <button class="btn btn-start"  ${info.running ? "disabled" : ""} onclick="startNamedProcess('car-sniper')">Start</button>
+      <button class="btn btn-stop"   ${!info.running || info.stopping ? "disabled" : ""} onclick="stopNamedProcess('car-sniper')">Stop</button>
+      <button class="btn btn-logs"   onclick="goToLogs('car-sniper')">Logs</button>
+    </div>
+  `;
+  container.appendChild(card);
 }
 
 /* ── Status ─────────────────────────────────────────────────────────────────── */
@@ -174,6 +292,7 @@ async function refreshStatus() {
     processState = data.processes || {};
     targetGroups = Array.isArray(data.targetGroups) ? data.targetGroups : targetGroups;
     renderProcessGrid();
+    renderAllMarketplaceTabs();
     setText("statBuyNow",   data.stats?.buyNow    ?? 0);
     setText("statMaybe",    data.stats?.maybe     ?? 0);
     setText("statAvgMargin", `$${formatNumber(data.stats?.avgMargin ?? 0)}`);
@@ -192,40 +311,475 @@ async function refreshStatus() {
 }
 
 async function startProcess(name) {
-  const res = await fetch("/api/process/start", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ process: name }),
-  });
+  await startNamedProcess(name);
+}
+
+async function stopProcess(name) {
+  await stopNamedProcess(name);
+}
+
+async function startNamedProcess(name) {
+  const res = await fetch(`/api/process/${name}/start`, { method: "POST" });
   if (res.ok && processState[name]) {
     processState[name].running = true;
     processState[name].stopping = false;
     renderProcessGrid();
+    renderAllMarketplaceTabs();
   }
+  refreshStatus();
 }
 
-async function stopProcess(name) {
-  const res = await fetch("/api/process/stop", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ process: name }),
-  });
+async function stopNamedProcess(name) {
+  const res = await fetch(`/api/process/${name}/stop`, { method: "POST" });
   if (res.ok && processState[name]) {
     processState[name].running = true;
     processState[name].stopping = true;
     renderProcessGrid();
+    renderAllMarketplaceTabs();
   }
+  refreshStatus();
 }
 
 function goToLogs(name) {
-  document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-  document.querySelector('[data-tab="logs"]')?.classList.add("active");
-  document.getElementById("tab-logs")?.classList.add("active");
+  setActiveTopTab("logs");
   const sel = document.getElementById("logProcess");
   if (sel) sel.value = name;
   currentLogProcess = name;
   flushTerminal();
+}
+
+/* ── Shared marketplace tabs ───────────────────────────────────────────────── */
+function normalizeSharedConfig(config = {}) {
+  return {
+    ...DEFAULT_SHARED_CONFIG,
+    ...(config && typeof config === "object" ? config : {}),
+    location: {
+      ...DEFAULT_SHARED_CONFIG.location,
+      ...((config && config.location) || {}),
+    },
+    notifications: {
+      ...DEFAULT_SHARED_CONFIG.notifications,
+      ...((config && config.notifications) || {}),
+      discord: {
+        ...DEFAULT_SHARED_CONFIG.notifications.discord,
+        ...(((config && config.notifications) || {}).discord || {}),
+      },
+    },
+    bots: {
+      facebook: {
+        ...DEFAULT_SHARED_CONFIG.bots.facebook,
+        ...(((config && config.bots) || {}).facebook || {}),
+      },
+      wallapop: {
+        ...DEFAULT_SHARED_CONFIG.bots.wallapop,
+        ...(((config && config.bots) || {}).wallapop || {}),
+      },
+      vinted: {
+        ...DEFAULT_SHARED_CONFIG.bots.vinted,
+        ...(((config && config.bots) || {}).vinted || {}),
+      },
+    },
+  };
+}
+
+async function loadSharedSettings() {
+  try {
+    const data = await fetchJson("/api/shared/settings");
+    sharedConfig = normalizeSharedConfig(data.config || {});
+    sharedWatchlist = Array.isArray(data.watchlist) ? data.watchlist : [];
+    sharedGroups = Array.isArray(data.groups) ? data.groups : buildSharedGroups(sharedWatchlist);
+    renderAllMarketplaceTabs();
+    if (sharedSettingsDirty) {
+      if (currentTopTab === "settings") {
+        setSharedSettingsStatus("Detected newer shared settings on disk. Your unsaved edits were kept; use Reload to refresh.", "");
+      }
+      return;
+    }
+    renderSharedSettings();
+    sharedSettingsDirty = false;
+  } catch (err) {
+    setSharedSettingsStatus(`Failed to load shared settings: ${err.message}`, "err");
+  }
+}
+
+async function loadSharedFound(platform) {
+  if (!PLATFORM_META[platform]) return;
+  try {
+    sharedFoundDeals[platform] = await fetch(`/api/shared/found/${platform}`).then((response) => response.json());
+    renderMarketplaceTab(platform);
+  } catch {
+    sharedFoundDeals[platform] = [];
+    renderMarketplaceTab(platform);
+  }
+}
+
+function renderAllMarketplaceTabs() {
+  Object.keys(PLATFORM_META).forEach((platform) => renderMarketplaceTab(platform));
+}
+
+function renderMarketplaceTab(platform) {
+  const mount = document.getElementById(`${platform}Panel`);
+  if (!mount) return;
+
+  const meta = PLATFORM_META[platform];
+  const info = processState[meta.process] || { running: false, stopping: false, label: `${meta.label} Sniper` };
+  const botConfig = normalizeSharedConfig(sharedConfig).bots[platform];
+  const deals = Array.isArray(sharedFoundDeals[platform]) ? sharedFoundDeals[platform] : [];
+  const totalTargets = sharedWatchlist.filter((target) => targetAppliesToPlatform(target, platform)).length;
+  const enabledTargets = sharedWatchlist.filter((target) => target.enabled !== false && targetAppliesToPlatform(target, platform)).length;
+  const badgeClass = info.running ? (info.stopping ? "badge-stopping" : "badge-running") : "badge-stopped";
+  const badgeText = info.running ? (info.stopping ? "Stopping" : "Running") : "Stopped";
+
+  mount.innerHTML = `
+    <div class="platform-shell">
+      <section class="hero-panel">
+        <div class="platform-header">
+          <div>
+            <h2>${escHtml(meta.label)}</h2>
+            <p class="panel-copy">${escHtml(meta.description)}</p>
+          </div>
+          <span class="badge ${badgeClass}">${badgeText}</span>
+        </div>
+        <div class="process-actions">
+          <button class="btn btn-start" ${info.running ? "disabled" : ""} onclick="startNamedProcess('${meta.process}')">Start</button>
+          <button class="btn btn-stop" ${!info.running || info.stopping ? "disabled" : ""} onclick="stopNamedProcess('${meta.process}')">Stop</button>
+          <button class="btn btn-logs" onclick="goToLogs('${meta.process}')">Logs</button>
+          <button class="btn btn-secondary" onclick="loadSharedFound('${platform}')">Refresh Deals</button>
+        </div>
+        <div class="marketplace-metrics">
+          <div class="market-metric">
+            <span class="market-metric-label">Enabled Targets</span>
+            <strong>${enabledTargets}</strong>
+          </div>
+          <div class="market-metric">
+            <span class="market-metric-label">Total Targets</span>
+            <strong>${totalTargets}</strong>
+          </div>
+          <div class="market-metric">
+            <span class="market-metric-label">Poll Interval</span>
+            <strong>${formatNumber(botConfig.pollIntervalSec)} sec</strong>
+          </div>
+          <div class="market-metric">
+            <span class="market-metric-label">Bot Enabled</span>
+            <strong>${botConfig.enabled !== false ? "Yes" : "No"}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="market-panel">
+        <div class="platform-header">
+          <div>
+            <h2>Recent Deals</h2>
+            <p class="panel-copy">Latest shared marketplace finds from <code>/api/shared/found/${platform}</code>.</p>
+          </div>
+        </div>
+        <div class="deal-list">
+          ${deals.length
+            ? deals.map((deal) => buildSharedDealCard(platform, deal)).join("")
+            : '<div class="empty">No deals saved for this platform yet.</div>'}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderSharedSettings() {
+  const panel = document.getElementById("sharedSettingsPanel");
+  if (!panel) return;
+
+  const config = normalizeSharedConfig(sharedConfig);
+  panel.innerHTML = `
+    <div class="platform-shell">
+      <section class="settings-panel">
+        <div class="platform-header">
+          <div>
+            <h2>Shared Marketplace Settings</h2>
+            <p class="panel-copy">These settings power Facebook, Wallapop, and Vinted together. Discord webhooks are optional, and the save action posts both config and watchlist JSON to <code>/api/shared/settings</code>.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-secondary" onclick="reloadSharedSettings()">Reload</button>
+            <button class="btn btn-primary" onclick="saveSharedSettings()">Save Shared Settings</button>
+          </div>
+        </div>
+
+        <div class="settings-meta">
+          <span class="hint-pill">${sharedWatchlist.length} shared target${sharedWatchlist.length === 1 ? "" : "s"}</span>
+          <span class="hint-pill">${sharedGroups.length} group${sharedGroups.length === 1 ? "" : "s"}</span>
+          <span class="hint-pill">Discord optional</span>
+        </div>
+
+        <form id="sharedSettingsForm" class="settings-form-grid" onsubmit="event.preventDefault(); saveSharedSettings();">
+          <div class="form-field">
+            <label for="sharedProxy">Proxy URL</label>
+            <input id="sharedProxy" class="quick-input" type="text" value="${escAttr(config.proxy || "")}" placeholder="http://user:pass@host:port" />
+          </div>
+          <div class="form-field form-field-wide">
+            <label for="sharedProxyPool">Proxy Pool</label>
+            <textarea id="sharedProxyPool" class="quick-input quick-textarea" rows="4" placeholder="One proxy URL per line">${escHtml((config.proxyPool || []).join("\n"))}</textarea>
+          </div>
+          <div class="form-field">
+            <label for="sharedLocationLabel">Location Label</label>
+            <input id="sharedLocationLabel" class="quick-input" type="text" value="${escAttr(config.location?.label || "")}" placeholder="Madrid, Spain" />
+          </div>
+          <div class="form-field">
+            <label for="sharedLatitude">Latitude</label>
+            <input id="sharedLatitude" class="quick-input" type="number" step="0.0001" value="${escAttr(config.location?.latitude ?? "")}" />
+          </div>
+          <div class="form-field">
+            <label for="sharedLongitude">Longitude</label>
+            <input id="sharedLongitude" class="quick-input" type="number" step="0.0001" value="${escAttr(config.location?.longitude ?? "")}" />
+          </div>
+          <div class="form-field checkbox-field">
+            <label for="sharedIncludePhotos">Include Photos In Alerts</label>
+            <input id="sharedIncludePhotos" type="checkbox" ${config.notifications?.includePhotos !== false ? "checked" : ""} />
+          </div>
+          <div class="form-field">
+            <label for="sharedMaxPhotos">Max Photos</label>
+            <input id="sharedMaxPhotos" class="quick-input" type="number" min="1" max="5" step="1" value="${escAttr(config.notifications?.maxPhotos ?? 3)}" />
+          </div>
+          <div class="form-field">
+            <label for="sharedAutoOpenBrowser">Browser Opening</label>
+            <select id="sharedAutoOpenBrowser" class="quick-input">
+              <option value="default" ${config.notifications?.autoOpenBrowser === "default" ? "selected" : ""}>Open listing after alert</option>
+              <option value="none" ${config.notifications?.autoOpenBrowser !== "default" ? "selected" : ""}>Never auto-open</option>
+            </select>
+          </div>
+          <div class="form-field checkbox-field">
+            <label for="sharedAutoOpenBuyNow">Auto Open Buy Now</label>
+            <input id="sharedAutoOpenBuyNow" type="checkbox" ${config.notifications?.autoOpenBuyNow ? "checked" : ""} />
+          </div>
+          <div class="form-field form-field-wide">
+            <label for="sharedDiscordAll">Discord Webhook: All Deals</label>
+            <input id="sharedDiscordAll" class="quick-input" type="url" value="${escAttr(config.notifications?.discord?.allWebhookUrl || "")}" placeholder="Optional" />
+          </div>
+          <div class="form-field form-field-wide">
+            <label for="sharedDiscordBuy">Discord Webhook: Buy Now</label>
+            <input id="sharedDiscordBuy" class="quick-input" type="url" value="${escAttr(config.notifications?.discord?.buyNowWebhookUrl || "")}" placeholder="Optional" />
+          </div>
+          <div class="form-field form-field-wide">
+            <label for="sharedDiscordMaybe">Discord Webhook: Maybe</label>
+            <input id="sharedDiscordMaybe" class="quick-input" type="url" value="${escAttr(config.notifications?.discord?.maybeWebhookUrl || "")}" placeholder="Optional" />
+          </div>
+          ${Object.keys(PLATFORM_META).map((platform) => buildBotFieldset(platform, config.bots[platform] || {})).join("")}
+        </form>
+      </section>
+
+      <section class="settings-panel">
+        <div class="platform-header">
+          <div>
+            <h2>Shared Watchlist JSON</h2>
+            <p class="panel-copy">Use raw JSON when you want full control over groups, aliases, per-platform targeting, shipping, and price ranges.</p>
+          </div>
+        </div>
+        <textarea id="sharedWatchlistEditor" class="settings-editor settings-editor-tall" spellcheck="false">${escHtml(JSON.stringify(sharedWatchlist, null, 2))}</textarea>
+      </section>
+
+      <div id="sharedSettingsStatus" class="settings-status"></div>
+    </div>
+  `;
+}
+
+function buildBotFieldset(platform, botConfig) {
+  const meta = PLATFORM_META[platform];
+  return `
+    <fieldset class="bot-settings-card">
+      <legend>${escHtml(meta.label)} Bot</legend>
+      <div class="form-field checkbox-field">
+        <label for="bot-${platform}-enabled">Enabled</label>
+        <input id="bot-${platform}-enabled" type="checkbox" ${botConfig.enabled !== false ? "checked" : ""} />
+      </div>
+      <div class="form-field">
+        <label for="bot-${platform}-poll">Poll Interval (sec)</label>
+        <input id="bot-${platform}-poll" class="quick-input" type="number" min="5" step="5" value="${escAttr(botConfig.pollIntervalSec ?? "")}" />
+      </div>
+      ${platform === "vinted" ? `
+        <div class="form-field form-field-wide">
+          <label for="bot-vinted-cookie">Vinted Cookie</label>
+          <textarea id="bot-vinted-cookie" class="quick-input quick-textarea" rows="4" placeholder="Optional manual cookie override">${escHtml(botConfig.cookie || "")}</textarea>
+        </div>
+      ` : ""}
+    </fieldset>
+  `;
+}
+
+function readSharedSettingsForm() {
+  const base = normalizeSharedConfig(sharedConfig);
+  const maxPhotos = clampNumber(document.getElementById("sharedMaxPhotos")?.value, 1, 5, base.notifications.maxPhotos);
+
+  return {
+    ...base,
+    proxy: document.getElementById("sharedProxy")?.value.trim() || "",
+    proxyPool: (document.getElementById("sharedProxyPool")?.value || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean),
+    location: {
+      ...base.location,
+      label: document.getElementById("sharedLocationLabel")?.value.trim() || base.location.label,
+      latitude: parseOptionalNumber(document.getElementById("sharedLatitude")?.value, base.location.latitude),
+      longitude: parseOptionalNumber(document.getElementById("sharedLongitude")?.value, base.location.longitude),
+    },
+    notifications: {
+      ...base.notifications,
+      includePhotos: document.getElementById("sharedIncludePhotos")?.checked !== false,
+      maxPhotos,
+      autoOpenBuyNow: !!document.getElementById("sharedAutoOpenBuyNow")?.checked,
+      autoOpenBrowser: document.getElementById("sharedAutoOpenBrowser")?.value || "default",
+      discord: {
+        allWebhookUrl: document.getElementById("sharedDiscordAll")?.value.trim() || "",
+        buyNowWebhookUrl: document.getElementById("sharedDiscordBuy")?.value.trim() || "",
+        maybeWebhookUrl: document.getElementById("sharedDiscordMaybe")?.value.trim() || "",
+      },
+    },
+    bots: {
+      facebook: {
+        ...base.bots.facebook,
+        enabled: !!document.getElementById("bot-facebook-enabled")?.checked,
+        pollIntervalSec: clampNumber(document.getElementById("bot-facebook-poll")?.value, 5, 3600, base.bots.facebook.pollIntervalSec),
+      },
+      wallapop: {
+        ...base.bots.wallapop,
+        enabled: !!document.getElementById("bot-wallapop-enabled")?.checked,
+        pollIntervalSec: clampNumber(document.getElementById("bot-wallapop-poll")?.value, 5, 3600, base.bots.wallapop.pollIntervalSec),
+      },
+      vinted: {
+        ...base.bots.vinted,
+        enabled: !!document.getElementById("bot-vinted-enabled")?.checked,
+        pollIntervalSec: clampNumber(document.getElementById("bot-vinted-poll")?.value, 5, 3600, base.bots.vinted.pollIntervalSec),
+        cookie: document.getElementById("bot-vinted-cookie")?.value.trim() || "",
+      },
+    },
+  };
+}
+
+async function saveSharedSettings() {
+  let nextWatchlist;
+  try {
+    nextWatchlist = JSON.parse(document.getElementById("sharedWatchlistEditor")?.value || "[]");
+  } catch (err) {
+    setSharedSettingsStatus(`Invalid watchlist JSON: ${err.message}`, "err");
+    return;
+  }
+
+  if (!Array.isArray(nextWatchlist)) {
+    setSharedSettingsStatus("Shared watchlist must be a JSON array.", "err");
+    return;
+  }
+
+  const config = readSharedSettingsForm();
+  const response = await fetch("/api/shared/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ config, watchlist: nextWatchlist }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) {
+    setSharedSettingsStatus(data.error || "Failed to save shared settings.", "err");
+    return;
+  }
+
+  sharedConfig = normalizeSharedConfig(config);
+  sharedWatchlist = nextWatchlist;
+  sharedGroups = buildSharedGroups(sharedWatchlist);
+  sharedSettingsDirty = false;
+  renderSharedSettings();
+  renderAllMarketplaceTabs();
+  setSharedSettingsStatus("Shared marketplace settings saved.", "ok");
+}
+
+function reloadSharedSettings() {
+  sharedSettingsDirty = false;
+  loadSharedSettings();
+}
+
+function setSharedSettingsStatus(msg, tone = "") {
+  const node = document.getElementById("sharedSettingsStatus");
+  if (!node) return;
+  node.textContent = msg;
+  node.className = `settings-status ${tone}`.trim();
+}
+
+function buildSharedGroups(items) {
+  return [...new Set((Array.isArray(items) ? items : []).map((item) => item?.group || "General").filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function targetAppliesToPlatform(target, platform) {
+  const platforms = Array.isArray(target?.platforms || target?.sources)
+    ? (target.platforms || target.sources).map((value) => String(value || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+  return (platforms.length ? platforms : ["facebook"]).includes(platform);
+}
+
+function buildSharedDealCard(platform, deal) {
+  const title = deal?.title || deal?.listing?.title || deal?.item?.title || deal?.model || "Marketplace deal";
+  const grade = String(deal?.grade || "?" ).toUpperCase();
+  const reasons = normalizeReasonList(deal?.reasons).slice(0, 3);
+  const photos = collectSharedPhotoUrls(deal);
+  const price = deal?.listing_price ?? deal?.listing?.price ?? deal?.item?.price ?? deal?.price;
+  const sellerBits = [
+    deal?.seller?.name,
+    deal?.seller?.rating != null ? `${deal.seller.rating}★` : "",
+    deal?.condition,
+  ].filter(Boolean);
+  const targetLabel = deal?.target?.label || deal?.query || "Custom target";
+  const groupLabel = deal?.target?.group || "General";
+  const url = deal?.url || deal?.listing?.url || deal?.item?.url || "";
+  const timestamp = deal?.timestamp || deal?.created_at || deal?.createdAt || deal?.item?.created_at;
+
+  return `
+    <article class="deal-card market-deal-card">
+      ${photos[0] ? `<img class="deal-photo-thumb" src="${escAttr(photos[0])}" alt="${escAttr(title)}" />` : ""}
+      <div class="market-deal-body">
+        <div class="market-deal-top">
+          <div>
+            <div class="process-name">${escHtml(title)}</div>
+            <div class="process-desc">${escHtml([PLATFORM_META[platform].label, ...sellerBits].join(" · ") || PLATFORM_META[platform].label)}</div>
+          </div>
+          <span class="badge ${gradeBadgeClass(grade)}">${escHtml(grade)}</span>
+        </div>
+        <div class="marketplace-metrics compact">
+          <div class="market-metric">
+            <span class="market-metric-label">Listed</span>
+            <strong>${formatEuro(price)}</strong>
+          </div>
+          <div class="market-metric">
+            <span class="market-metric-label">Score</span>
+            <strong>${deal?.score != null ? escHtml(String(deal.score)) : "–"}</strong>
+          </div>
+          <div class="market-metric">
+            <span class="market-metric-label">Target</span>
+            <strong>${escHtml(targetLabel)}</strong>
+          </div>
+          <div class="market-metric">
+            <span class="market-metric-label">Group</span>
+            <strong>${escHtml(groupLabel)}</strong>
+          </div>
+        </div>
+        ${reasons.length ? `<div class="car-notes">${escHtml(reasons.join(" • "))}</div>` : ""}
+        <div class="car-footer">
+          <div class="car-target-label">${escHtml(timestamp ? new Date(timestamp).toLocaleString() : "Latest shared deal")}</div>
+          <button class="car-open-btn" onclick="openInBrowser('${escAttr(url)}')">Open ↗</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function collectSharedPhotoUrls(deal) {
+  return [
+    ...(Array.isArray(deal?.listing?.photos) ? deal.listing.photos : []),
+    ...(Array.isArray(deal?.item?.photos) ? deal.item.photos : []),
+  ]
+    .map((photo) => (typeof photo === "string" ? photo : photo?.full_size_url || photo?.full_url || photo?.url || photo?.imageUrl || ""))
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function gradeBadgeClass(grade) {
+  if (["A", "B"].includes(grade)) return "badge-running";
+  if (["C", "D"].includes(grade)) return "badge-stopping";
+  return "badge-stopped";
 }
 
 /* ── Watchlist ──────────────────────────────────────────────────────────────── */
@@ -599,30 +1153,43 @@ function closeDealModal() {
 
 /* ── Settings ───────────────────────────────────────────────────────────────── */
 async function loadSettings() {
-  const data = await fetch("/api/settings").then((r) => r.json());
-  appConfig  = data.config || {};
-  watchlist  = Array.isArray(data.watchlist) ? data.watchlist : [];
-  syncTargetGroups();
-  renderWatchlist();
-  renderFoundDeals();
-  renderRejectedDeals();
-  document.getElementById("configEditor").value   = JSON.stringify(appConfig, null, 2);
-  document.getElementById("watchlistEditor").value = JSON.stringify(watchlist, null, 2);
+  try {
+    const data = await fetchJson("/api/settings");
+    appConfig  = data.config || {};
+    watchlist  = Array.isArray(data.watchlist) ? data.watchlist : [];
+    syncTargetGroups();
+    renderWatchlist();
+    renderFoundDeals();
+    renderRejectedDeals();
 
-  // Populate quick settings fields
-  document.getElementById("qsInterval").value = Math.max(180, appConfig.intervalSeconds ?? 180);
-  document.getElementById("qsRadius").value = appConfig.radiusKM ?? 120;
-  document.getElementById("qsAllowShipping").value = appConfig.allowShipping === false ? "false" : "true";
-  document.getElementById("qsLocationLabel").value = appConfig.location?.label || "";
-  document.getElementById("qsLatitude").value = appConfig.location?.latitude ?? "";
-  document.getElementById("qsLongitude").value = appConfig.location?.longitude ?? "";
-  document.getElementById("qsSearchConcurrency").value = appConfig.searchConcurrency ?? 2;
-  document.getElementById("qsDetailConcurrency").value = appConfig.detailConcurrency ?? 3;
-  document.getElementById("qsProxy").value    = appConfig.proxy || "";
-  document.getElementById("qsProxyPool").value = Array.isArray(appConfig.proxyPool) ? appConfig.proxyPool.join("\n") : "";
-  updateProxyWarning();
+    if (carSettingsDirty) {
+      if (currentTopTab === "cars" && currentCarView === "settings") {
+        setSettingsStatus("Detected newer car settings on disk. Your unsaved edits were kept; use Reload to refresh.", "");
+      }
+      return;
+    }
 
-  setSettingsStatus("Loaded current settings from disk.", "ok");
+    document.getElementById("configEditor").value   = JSON.stringify(appConfig, null, 2);
+    document.getElementById("watchlistEditor").value = JSON.stringify(watchlist, null, 2);
+
+    // Populate quick settings fields
+    document.getElementById("qsInterval").value = Math.max(180, appConfig.intervalSeconds ?? 180);
+    document.getElementById("qsRadius").value = appConfig.radiusKM ?? 120;
+    document.getElementById("qsAllowShipping").value = appConfig.allowShipping === false ? "false" : "true";
+    document.getElementById("qsLocationLabel").value = appConfig.location?.label || "";
+    document.getElementById("qsLatitude").value = appConfig.location?.latitude ?? "";
+    document.getElementById("qsLongitude").value = appConfig.location?.longitude ?? "";
+    document.getElementById("qsSearchConcurrency").value = appConfig.searchConcurrency ?? 2;
+    document.getElementById("qsDetailConcurrency").value = appConfig.detailConcurrency ?? 3;
+    document.getElementById("qsProxy").value    = appConfig.proxy || "";
+    document.getElementById("qsProxyPool").value = Array.isArray(appConfig.proxyPool) ? appConfig.proxyPool.join("\n") : "";
+    updateProxyWarning();
+
+    carSettingsDirty = false;
+    setSettingsStatus("Loaded current settings from disk.", "ok");
+  } catch (err) {
+    setSettingsStatus(`Failed to load settings: ${err.message}`, "err");
+  }
 }
 
 function updateProxyWarning() {
@@ -677,17 +1244,10 @@ async function saveQuickSettings() {
   // Keep the raw editor in sync
   document.getElementById("configEditor").value = JSON.stringify(nextConfig, null, 2);
 
-  let nextWatchlist;
-  try {
-    nextWatchlist = JSON.parse(document.getElementById("watchlistEditor").value);
-  } catch {
-    nextWatchlist = watchlist;
-  }
-
   const res    = await fetch("/api/settings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ config: nextConfig, watchlist: nextWatchlist }),
+    body: JSON.stringify({ config: nextConfig, watchlist }),
   });
   const result = await res.json();
 
@@ -740,6 +1300,7 @@ async function saveSettings() {
   renderFoundDeals();
   renderRejectedDeals();
   refreshStatus();
+  carSettingsDirty = false;
   setSettingsStatus("Saved. Restart the scan loop to apply immediately.", "ok");
 }
 
@@ -886,7 +1447,10 @@ async function submitTextPromptModal() {
   if (shouldClose !== false) closeTextPromptModal();
 }
 
-function reloadSettings() { loadSettings(); }
+function reloadSettings() {
+  carSettingsDirty = false;
+  loadSettings();
+}
 
 function setSettingsStatus(msg, tone = "") {
   const node = document.getElementById("settingsStatus");
@@ -1098,6 +1662,11 @@ function formatMoney(v) {
   return Number.isFinite(n) ? `$${n.toLocaleString()}` : "–";
 }
 
+function formatEuro(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? `EUR ${n.toLocaleString()}` : "–";
+}
+
 function formatMiles(v) {
   const n = Number(v);
   return Number.isFinite(n) ? `${n.toLocaleString()} mi` : "mileage unknown";
@@ -1136,11 +1705,37 @@ function escAttr(v) {
   return String(v ?? "").replace(/'/g, "&#39;").replace(/"/g, "&quot;");
 }
 
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    if (!response.ok) throw new Error(`Request failed (${response.status})`);
+    throw new Error(`Invalid JSON response from ${url}`);
+  }
+  if (!response.ok) {
+    throw new Error(data?.error || `Request failed (${response.status})`);
+  }
+  return data;
+}
+
 function cssEscape(value) {
   if (window.CSS && typeof window.CSS.escape === "function") {
     return window.CSS.escape(String(value ?? ""));
   }
   return String(value ?? "").replace(/["\\]/g, "\\$&");
+}
+
+function parseOptionalNumber(value, fallback = null) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
 }
 
 /* ── Search / filter listeners ──────────────────────────────────────────────── */
@@ -1151,10 +1746,21 @@ document.getElementById("rejectedSearch")?.addEventListener("input", renderRejec
 /* ── Periodic refresh ───────────────────────────────────────────────────────── */
 function refreshVisible() {
   if (document.visibilityState !== "visible") return;
-  if (document.getElementById("tab-dashboard")?.classList.contains("active")) refreshStatus();
-  if (document.getElementById("tab-found")?.classList.contains("active"))     loadFoundDeals();
-  if (document.getElementById("tab-rejected")?.classList.contains("active"))  loadRejectedDeals();
-  if (document.getElementById("tab-watchlist")?.classList.contains("active")) loadWatchlist();
+  if (currentTopTab === "cars") {
+    refreshStatus();
+    if (currentCarView === "watchlist") loadWatchlist();
+    if (currentCarView === "found") loadFoundDeals();
+    if (currentCarView === "rejected") loadRejectedDeals();
+    if (currentCarView === "settings") loadSettings();
+    return;
+  }
+  if (currentTopTab === "settings") {
+    loadSharedSettings();
+    return;
+  }
+  if (PLATFORM_META[currentTopTab]) {
+    loadSharedFound(currentTopTab);
+  }
 }
 
 /* ── Add Target Drawer ──────────────────────────────────────────────────────── */
@@ -1245,11 +1851,8 @@ async function addTarget() {
     await loadWatchlist();
     closeAddTarget();
 
-    // Switch to watchlist tab to show the new target
-    document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-    document.querySelector('[data-tab="watchlist"]').classList.add("active");
-    document.getElementById("tab-watchlist").classList.add("active");
+    setActiveTopTab("cars");
+    setActiveCarView("watchlist");
   } catch (e) {
     setDrawerStatus(`Error: ${e.message}`, "err");
   } finally {
@@ -1280,11 +1883,23 @@ document.getElementById("textPromptInput")?.addEventListener("keydown", (event) 
   }
 });
 
+function trackEditorDirtyState(event) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  if (target.closest("#car-view-settings")) carSettingsDirty = true;
+  if (target.closest("#sharedSettingsPanel")) sharedSettingsDirty = true;
+}
+
+document.addEventListener("input", trackEditorDirtyState);
+document.addEventListener("change", trackEditorDirtyState);
+
 /* ── Boot ───────────────────────────────────────────────────────────────────── */
 connectWS();
 refreshStatus();
 loadFoundDeals();
 loadRejectedDeals();
 loadSettings();
+loadSharedSettings();
+Object.keys(PLATFORM_META).forEach((platform) => loadSharedFound(platform));
 setInterval(refreshVisible, 15000);
 document.addEventListener("visibilitychange", refreshVisible);

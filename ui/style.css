@@ -107,7 +107,6 @@ h2 {
 
 .hero-panel,
 .market-panel,
-.settings-panel,
 .log-panel {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -123,6 +122,13 @@ h2 {
   margin-bottom: 1rem;
 }
 
+.panel-copy {
+  color: var(--muted);
+  font-size: .84rem;
+  line-height: 1.55;
+  max-width: 72ch;
+}
+
 .deal-list {
   display: grid;
   gap: .85rem;
@@ -133,6 +139,132 @@ h2 {
   border-radius: 12px;
   padding: 1rem;
   background: rgba(255, 255, 255, .02);
+}
+
+.cars-shell {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.cars-hero-panel {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.cars-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .55rem;
+}
+
+.car-subnav-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: .45rem .85rem;
+  font: inherit;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.car-subnav-btn:hover {
+  color: var(--text);
+  border-color: rgba(79,126,248,.35);
+}
+
+.car-subnav-btn.active {
+  color: #fff;
+  background: rgba(79,126,248,.14);
+  border-color: rgba(79,126,248,.45);
+}
+
+.car-view {
+  display: none;
+}
+
+.car-view.active {
+  display: block;
+}
+
+.car-view-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.15rem;
+}
+
+.marketplace-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: .75rem;
+  margin-top: 1rem;
+}
+
+.marketplace-metrics.compact {
+  margin-top: 0;
+}
+
+.market-metric {
+  background: rgba(255, 255, 255, .02);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .8rem .9rem;
+  display: grid;
+  gap: .25rem;
+}
+
+.market-metric strong {
+  color: #fff;
+  font-size: .95rem;
+}
+
+.market-metric-label {
+  color: var(--muted);
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.market-deal-card {
+  display: grid;
+  grid-template-columns: minmax(0, 140px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.deal-photo-thumb {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #0a0d15;
+  border: 1px solid var(--border);
+}
+
+.market-deal-body {
+  display: grid;
+  gap: .8rem;
+  min-width: 0;
+}
+
+.market-deal-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: .75rem;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+}
+
+.settings-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
 }
 
 /* ── Stats grid ──────────────────────────────────────────────────────────────── */
@@ -833,6 +965,10 @@ h2 {
   gap: .45rem;
 }
 
+.form-field-wide {
+  grid-column: 1 / -1;
+}
+
 .form-field label {
   font-size: .78rem;
   color: var(--muted);
@@ -843,6 +979,39 @@ h2 {
 .help-note {
   color: var(--muted);
   font-size: .84rem;
+}
+
+.checkbox-field {
+  grid-auto-flow: column;
+  justify-content: start;
+  align-items: center;
+  gap: .7rem;
+}
+
+.checkbox-field label {
+  order: 2;
+}
+
+.checkbox-field input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.bot-settings-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  display: grid;
+  gap: .75rem;
+  min-width: 0;
+}
+
+.bot-settings-card legend {
+  padding: 0 .4rem;
+  color: #fff;
+  font-size: .82rem;
+  font-weight: 700;
 }
 
 /* ── Quick Settings ───────────────────────────────────────────────────────────── */
@@ -898,6 +1067,11 @@ h2 {
 @media (max-width: 640px) {
   .quick-row { grid-template-columns: 1fr; }
   .quick-field-wide { grid-column: 1; }
+  .form-field-wide { grid-column: 1; }
+  .market-deal-card { grid-template-columns: 1fr; }
+  .deal-photo-thumb { aspect-ratio: 16 / 10; }
+  .header-actions { width: 100%; }
+  .header-actions .btn { flex: 1 1 0; }
 }
 
 /* ── Terminal / Logs ──────────────────────────────────────────────────────────── */
