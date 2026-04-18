@@ -2,6 +2,7 @@ node_modules/
 dist/
 out/
 puppeteer-cache/
+.worktrees/
 
 # Runtime data — keep the directory, drop the generated contents
 data/*
