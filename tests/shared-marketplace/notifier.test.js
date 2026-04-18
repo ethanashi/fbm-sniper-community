@@ -7,23 +7,27 @@ import {
   buildDiscordEmbeds,
 } from "../../lib/shared-marketplace/notifier.js";
 
-test("resolveNotificationConfig keeps Discord optional", () => {
+test("resolveNotificationConfig preserves notification fields and defaults Discord", () => {
   const config = resolveNotificationConfig({
     notifications: {
-      includePhotos: true,
-      maxPhotos: 3,
-      autoOpenBrowser: "default",
+      includePhotos: false,
+      maxPhotos: 5,
+      autoOpenBrowser: "always",
+      discord: {
+        buyNowWebhookUrl: "https://discord.test/buy",
+      },
     },
   });
 
   assert.equal(config.enabled, false);
+  assert.equal(config.includePhotos, false);
+  assert.equal(config.maxPhotos, 5);
+  assert.equal(config.autoOpenBrowser, "always");
   assert.deepEqual(config.discord, {
     allWebhookUrl: "",
-    buyNowWebhookUrl: "",
+    buyNowWebhookUrl: "https://discord.test/buy",
     maybeWebhookUrl: "",
   });
-  assert.equal(config.discord.allWebhookUrl, "");
-  assert.equal(config.maxPhotos, 3);
 });
 
 test("selectDiscordTargets routes grade B to all and buy-now", () => {
@@ -38,7 +42,13 @@ test("selectDiscordTargets routes grade B to all and buy-now", () => {
   });
 
   const targets = selectDiscordTargets({ grade: "B", url: "https://listing.test/1" }, config);
-  assert.deepEqual(targets.map((target) => target.name), ["All Deals", "Buy Now"]);
+  assert.deepEqual(
+    targets.map((target) => ({ name: target.name, webhookUrl: target.webhookUrl })),
+    [
+      { name: "All Deals", webhookUrl: "https://discord.test/all" },
+      { name: "Buy Now", webhookUrl: "https://discord.test/buy" },
+    ],
+  );
 });
 
 test("buildDiscordEmbeds includes Vinted fee and seller details", () => {
@@ -72,6 +82,11 @@ test("buildDiscordEmbeds includes Vinted fee and seller details", () => {
 
   assert.equal(embeds.length, 1);
   assert.equal(embeds[0].color, 0xd4a72c);
-  assert.match(JSON.stringify(embeds[0].fields), /Seller/);
-  assert.match(JSON.stringify(embeds[0].fields), /Fees/);
+  assert.deepEqual(
+    embeds[0].fields.map((field) => ({ name: field.name, value: field.value })),
+    [
+      { name: "Seller", value: "maria · 4.9 · 12 items" },
+      { name: "Fees", value: "Buyer protection €8 · shipping €6 · total €334 · verif €336" },
+    ],
+  );
 });
