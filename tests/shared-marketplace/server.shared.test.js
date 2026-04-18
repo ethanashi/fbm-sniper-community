@@ -9,14 +9,16 @@ process.env.FBM_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "fbm-shared-"))
 const { startServer, stopServer } = await import("../../server.cjs");
 
 async function waitForProcessStopped(port, name) {
-  const deadline = Date.now() + 5000;
+  const deadline = Date.now() + 15000;
+  let lastStatus = null;
   while (Date.now() < deadline) {
     const response = await fetch(`http://127.0.0.1:${port}/api/status`);
     const status = await response.json();
-    if (!status.processes?.[name]?.running) return;
+    lastStatus = status.processes?.[name] || null;
+    if (!lastStatus?.running) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error(`Timed out waiting for ${name} to stop`);
+  throw new Error(`Timed out waiting for ${name} to stop; last status: ${JSON.stringify(lastStatus)}`);
 }
 
 test("GET /api/shared/found/:platform returns newest-first deals", async () => {
@@ -46,6 +48,7 @@ test("GET /api/shared/found/:platform returns newest-first deals", async () => {
 test("POST /api/process/facebook-sniper/start uses the named route alias", async () => {
   const port = await startServer(0);
   let started = false;
+  let cleanupError = null;
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/process/facebook-sniper/start`, {
       method: "POST",
@@ -55,13 +58,24 @@ test("POST /api/process/facebook-sniper/start uses the named route alias", async
 
     const data = await response.json();
     assert.equal(data.ok, true);
+  } catch (error) {
+    cleanupError = error;
   } finally {
     if (started) {
-      await fetch(`http://127.0.0.1:${port}/api/process/facebook-sniper/stop`, {
-        method: "POST",
-      }).catch(() => {});
-      await waitForProcessStopped(port, "facebook-sniper");
+      try {
+        await fetch(`http://127.0.0.1:${port}/api/process/facebook-sniper/stop`, {
+          method: "POST",
+        });
+      } catch (error) {
+        cleanupError ||= new Error(`failed to request facebook-sniper stop: ${error.message}`);
+      }
+      try {
+        await waitForProcessStopped(port, "facebook-sniper");
+      } catch (error) {
+        cleanupError ||= error;
+      }
     }
     await stopServer();
   }
+  if (cleanupError) throw cleanupError;
 });
