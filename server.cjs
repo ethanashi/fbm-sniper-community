@@ -17,6 +17,11 @@ const REJECTED_FILE = path.join(DATA_DIR, "rejected_listings.csv");
 const WATCHLIST_FILE = path.join(DATA_DIR, "watchlist.json");
 const CONFIG_FILE = path.join(DATA_DIR, "config.json");
 const SEEN_IDS_FILE = path.join(DATA_DIR, "seen_ids.json");
+const SHARED_FOUND_FILES = {
+  facebook: path.join(DATA_DIR, "facebook", "found.ndjson"),
+  wallapop: path.join(DATA_DIR, "wallapop", "found.ndjson"),
+  vinted: path.join(DATA_DIR, "vinted", "found.ndjson"),
+};
 const REJECTED_HEADERS = "timestamp,title,query,target_id,target_label,target_group,listing_price,reason,url,make,model,year,title_status\n";
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -40,7 +45,43 @@ const PROCESSES = {
     proc: null,
     stopping: false,
   },
+  "facebook-sniper": {
+    label: "Facebook Sniper",
+    cmd: process.execPath,
+    args: ["lib/facebook-sniper.js"],
+    proc: null,
+    stopping: false,
+  },
+  "wallapop-sniper": {
+    label: "Wallapop Sniper",
+    cmd: process.execPath,
+    args: ["lib/wallapop-sniper.js"],
+    proc: null,
+    stopping: false,
+  },
+  "vinted-sniper": {
+    label: "Vinted Sniper",
+    cmd: process.execPath,
+    args: ["lib/vinted-sniper.js"],
+    proc: null,
+    stopping: false,
+  },
 };
+
+let workspace = null;
+async function initWorkspace() {
+  if (workspace) return workspace;
+  workspace = await import("./lib/shared-marketplace/workspace.js");
+  workspace.ensureWorkspaceFiles();
+  return workspace;
+}
+function requireWorkspace(res) {
+  if (!workspace) {
+    res.status(503).json({ error: "workspace not initialized" });
+    return null;
+  }
+  return workspace;
+}
 
 const logs = {};
 const stopTimers = {};
@@ -205,6 +246,30 @@ function readFoundDeals() {
   } catch {
     return [];
   }
+}
+
+function readNdjsonTail(file, limit = 50) {
+  try {
+    const text = fs.readFileSync(file, "utf8").trim();
+    if (!text) return [];
+    const entries = [];
+    const lines = text.split("\n").filter(Boolean);
+    for (let index = lines.length - 1; index >= 0 && entries.length < limit; index -= 1) {
+      try {
+        entries.push(JSON.parse(lines[index]));
+      } catch {
+        // Skip malformed or partially-written NDJSON lines and keep valid entries.
+      }
+    }
+    return entries;
+  } catch {
+    return [];
+  }
+}
+
+function getSharedPlatformFile(platform) {
+  const key = String(platform || "").trim().toLowerCase();
+  return SHARED_FOUND_FILES[key] || null;
 }
 
 function inferTargetType(target) {
@@ -390,10 +455,13 @@ function buildLimits(watchlist) {
 }
 
 let watchersStarted = false;
-function watchDataFile(file, eventType) {
+const watchedFiles = new Set();
+let listenErrorHandler = null;
+function watchDataFile(file, eventType, extra = {}) {
+  watchedFiles.add(file);
   fs.watchFile(file, { interval: 1500 }, (curr, prev) => {
     if (curr.mtimeMs === 0 || curr.mtimeMs === prev.mtimeMs) return;
-    broadcast({ type: eventType, ts: Date.now() });
+    broadcast({ type: eventType, ts: Date.now(), ...extra });
   });
 }
 
@@ -404,6 +472,9 @@ function startWatchers() {
   watchDataFile(FOUND_FILE, "car-found-updated");
   watchDataFile(REJECTED_FILE, "car-rejected-updated");
   watchDataFile(WATCHLIST_FILE, "car-watchlist-updated");
+  watchDataFile(SHARED_FOUND_FILES.facebook, "shared-found-updated", { platform: "facebook" });
+  watchDataFile(SHARED_FOUND_FILES.wallapop, "shared-found-updated", { platform: "wallapop" });
+  watchDataFile(SHARED_FOUND_FILES.vinted, "shared-found-updated", { platform: "vinted" });
 }
 
 app.get("/api/status", (_req, res) => {
@@ -555,6 +626,13 @@ app.get("/api/found", (_req, res) => {
   res.json(readFoundDeals());
 });
 
+app.get("/api/shared/found/:platform", (req, res) => {
+  const file = getSharedPlatformFile(req.params.platform);
+  if (!file) return res.status(400).json({ error: "unsupported platform" });
+  const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50) || 50));
+  res.json(readNdjsonTail(file, limit));
+});
+
 app.get("/api/rejected", (_req, res) => {
   res.json(readRejected());
 });
@@ -573,6 +651,14 @@ app.post("/api/process/start", (req, res) => {
 app.post("/api/process/stop", (req, res) => {
   const { process: name } = req.body;
   res.json(stopProcess(name));
+});
+
+app.post("/api/process/:name/start", (req, res) => {
+  res.json(startProcess(req.params.name));
+});
+
+app.post("/api/process/:name/stop", (req, res) => {
+  res.json(stopProcess(req.params.name));
 });
 
 app.post("/api/reset-memory", (_req, res) => {
@@ -619,6 +705,146 @@ app.post("/api/watchlist/add", (req, res) => {
   });
 });
 
+app.get("/api/shared/settings", (_req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const config = ws.loadWorkspaceConfig();
+  const watchlist = ws.loadWorkspaceWatchlist();
+  res.json({
+    config,
+    watchlist,
+    groups: ws.buildWatchlistGroups(watchlist),
+  });
+});
+
+app.post("/api/shared/settings", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { config, watchlist } = req.body || {};
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return res.status(400).json({ error: "config must be an object" });
+  }
+  if (!Array.isArray(watchlist)) {
+    return res.status(400).json({ error: "watchlist must be an array" });
+  }
+  ws.saveWorkspaceConfig(config);
+  ws.saveWorkspaceWatchlist(watchlist);
+  broadcast({ type: "shared-config-updated", ts: Date.now() });
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true });
+});
+
+app.get("/api/shared/watchlist", (_req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  res.json(ws.loadWorkspaceWatchlist());
+});
+
+app.post("/api/shared/watchlist/add", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const entry = ws.normalizeWatchlistEntry(req.body?.target);
+  if (!entry) return res.status(400).json({ error: "invalid target object" });
+  const list = ws.loadWorkspaceWatchlist();
+  if (list.some((t) => t.id === entry.id)) entry.id = `${entry.id}-${Date.now()}`;
+  list.push(entry);
+  const saved = ws.saveWorkspaceWatchlist(list);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, target: saved.find((t) => t.id === entry.id) || entry });
+});
+
+app.post("/api/shared/watchlist/toggle", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { id, enabled } = req.body || {};
+  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
+  const list = ws.loadWorkspaceWatchlist();
+  const idx = list.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: "target not found" });
+  list[idx] = { ...list[idx], enabled: enabled !== false };
+  const saved = ws.saveWorkspaceWatchlist(list);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
+});
+
+app.post("/api/shared/watchlist/update", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { id, patch } = req.body || {};
+  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    return res.status(400).json({ error: "patch object is required" });
+  }
+  const list = ws.loadWorkspaceWatchlist();
+  const idx = list.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: "target not found" });
+
+  const current = list[idx];
+  const merged = { ...current, ...patch };
+  if (patch.platformOverrides && typeof patch.platformOverrides === "object" && !Array.isArray(patch.platformOverrides)) {
+    merged.platformOverrides = { ...(current.platformOverrides || {}), ...patch.platformOverrides };
+    for (const [key, value] of Object.entries(merged.platformOverrides)) {
+      if (!value || (value.minPrice == null && value.maxPrice == null)) {
+        delete merged.platformOverrides[key];
+      }
+    }
+  }
+  list[idx] = merged;
+  const saved = ws.saveWorkspaceWatchlist(list);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
+});
+
+app.post("/api/shared/watchlist/delete", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { id } = req.body || {};
+  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
+  const list = ws.loadWorkspaceWatchlist();
+  const filtered = list.filter((t) => t.id !== id);
+  if (filtered.length === list.length) return res.status(404).json({ error: "target not found" });
+  ws.saveWorkspaceWatchlist(filtered);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true });
+});
+
+app.post("/api/shared/watchlist/move", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { id, group } = req.body || {};
+  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
+  if (!group || typeof group !== "string" || !group.trim()) return res.status(400).json({ error: "group name is required" });
+  const list = ws.loadWorkspaceWatchlist();
+  const idx = list.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: "target not found" });
+  list[idx] = { ...list[idx], group: group.trim() };
+  const saved = ws.saveWorkspaceWatchlist(list);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
+});
+
+app.post("/api/shared/watchlist/rename-group", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { from, to } = req.body || {};
+  if (!from || !to || !String(from).trim() || !String(to).trim()) {
+    return res.status(400).json({ error: "from and to group names required" });
+  }
+  const fromName = String(from).trim();
+  const toName = String(to).trim();
+  const list = ws.loadWorkspaceWatchlist();
+  let changed = 0;
+  const updated = list.map((t) => {
+    if ((t.group || "General") !== fromName) return t;
+    changed += 1;
+    return { ...t, group: toName };
+  });
+  if (!changed) return res.status(404).json({ error: "group not found" });
+  const saved = ws.saveWorkspaceWatchlist(updated);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, changed, groups: ws.buildWatchlistGroups(saved) });
+});
+
 wss.on("connection", (ws) => {
   const processes = {};
   for (const [key, value] of Object.entries(PROCESSES)) {
@@ -636,17 +862,43 @@ wss.on("connection", (ws) => {
   }));
 });
 
-function startServer(port) {
+async function startServer(port) {
+  await initWorkspace();
   return new Promise((resolve, reject) => {
-    server.on("error", reject);
+    if (listenErrorHandler) {
+      server.removeListener("error", listenErrorHandler);
+    }
+    listenErrorHandler = (error) => {
+      server.removeListener("error", listenErrorHandler);
+      listenErrorHandler = null;
+      reject(error);
+    };
+    server.on("error", listenErrorHandler);
     server.listen(port || 0, "127.0.0.1", () => {
+      if (listenErrorHandler) {
+        server.removeListener("error", listenErrorHandler);
+        listenErrorHandler = null;
+      }
       startWatchers();
       resolve(server.address().port);
     });
   });
 }
 
-module.exports = { startServer };
+async function stopServer() {
+  if (listenErrorHandler) {
+    server.removeListener("error", listenErrorHandler);
+    listenErrorHandler = null;
+  }
+  for (const file of watchedFiles) fs.unwatchFile(file);
+  watchedFiles.clear();
+  watchersStarted = false;
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+module.exports = { startServer, stopServer };
 
 if (require.main === module) {
   const port = process.env.PORT ? Number(process.env.PORT) : 3340;
