@@ -25,9 +25,9 @@ Download the latest release from GitHub:
 
 | Platform | File |
 | --- | --- |
-| Apple Silicon Mac | `FBM Sniper Community-2.0.0-arm64.dmg` |
-| Intel Mac | `FBM Sniper Community-2.0.0.dmg` |
-| Windows x64 | `FBM Sniper Community Setup 2.0.0.exe` |
+| Apple Silicon Mac | `FBM.Sniper.Community-2.0.0-arm64.dmg` |
+| Intel Mac | `FBM.Sniper.Community-2.0.0.dmg` |
+| Windows x64 | `FBM.Sniper.Community.Setup.2.0.0.exe` |
 
 On macOS, open the `.dmg`, drag the app into Applications, then open it.
 

@@ -39,9 +39,9 @@ Grab the latest release from the [Releases page](https://github.com/ethanashi/fb
 
 | Platform | File |
 | --- | --- |
-| macOS (Apple Silicon) | `FBM Sniper Community-2.0.0-arm64.dmg` |
-| macOS (Intel) | `FBM Sniper Community-2.0.0.dmg` |
-| Windows (x64) | `FBM Sniper Community Setup 2.0.0.exe` |
+| macOS (Apple Silicon) | `FBM.Sniper.Community-2.0.0-arm64.dmg` |
+| macOS (Intel) | `FBM.Sniper.Community-2.0.0.dmg` |
+| Windows (x64) | `FBM.Sniper.Community.Setup.2.0.0.exe` |
 
 ### macOS "app is damaged" warning
 
