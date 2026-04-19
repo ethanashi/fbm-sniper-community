@@ -15,6 +15,8 @@
       <button class="nav-btn" data-tab="facebook">Facebook</button>
       <button class="nav-btn" data-tab="wallapop">Wallapop</button>
       <button class="nav-btn" data-tab="vinted">Vinted</button>
+      <button class="nav-btn" data-tab="found-listings">Found Listings</button>
+      <button class="nav-btn" data-tab="watchlist">Watchlist</button>
       <button class="nav-btn" data-tab="settings">Settings</button>
       <button class="nav-btn" data-tab="logs">Logs</button>
     </nav>
@@ -238,6 +240,45 @@
     <section class="tab" id="tab-facebook"><div id="facebookPanel"></div></section>
     <section class="tab" id="tab-wallapop"><div id="wallapopPanel"></div></section>
     <section class="tab" id="tab-vinted"><div id="vintedPanel"></div></section>
+    <section class="tab" id="tab-found-listings">
+      <div class="platform-shell">
+        <section class="hero-panel">
+          <div class="platform-header">
+            <div>
+              <h2>Found Listings</h2>
+              <p class="panel-copy">Every live hit across Cars, Facebook, Wallapop, and Vinted in one feed. Filter by site, grade, or search — or toggle whole platforms off.</p>
+            </div>
+            <span class="live-pill">Live feed</span>
+          </div>
+          <div class="toolbar found-listings-toolbar">
+            <input id="foundListingsSearch" type="search" class="found-search-input" placeholder="Search title…" autocomplete="off" />
+            <select id="foundListingsPlatformFilter" class="filter-select">
+              <option value="all">All platforms</option>
+              <option value="facebook">Facebook</option>
+              <option value="wallapop">Wallapop</option>
+              <option value="vinted">Vinted</option>
+              <option value="cars">Cars</option>
+            </select>
+            <select id="foundListingsGradeFilter" class="filter-select">
+              <option value="all">All grades</option>
+              <option value="good">Good deals only</option>
+              <option value="okay">Okay or better</option>
+            </select>
+          </div>
+          <div id="foundListingsColumnToggles" class="filter-row found-listings-chips"></div>
+          <div id="foundListingsGrid" class="found-listings-grid"></div>
+        </section>
+      </div>
+    </section>
+    <section class="tab" id="tab-watchlist">
+      <div class="toolbar">
+        <button class="btn btn-primary" onclick="openSharedAddTargetEmpty()">+ Add Target</button>
+        <span class="live-pill">Live watchlist</span>
+        <span class="limit-pill" id="sharedWatchStatsPill">0 targets</span>
+      </div>
+      <div id="sharedWatchGroupFilters" class="filter-row"></div>
+      <div id="sharedWatchlistCards"></div>
+    </section>
     <section class="tab" id="tab-settings">
       <div id="sharedSettingsPanel">
         <form id="sharedSettingsForm"></form>
@@ -322,6 +363,8 @@
       </div>
     </div>
   </div>
+
+  <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="true"></div>
 
   <script src="app.js"></script>
 </body>

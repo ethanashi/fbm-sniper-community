@@ -767,6 +767,34 @@ app.post("/api/shared/watchlist/toggle", (req, res) => {
   res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
 });
 
+app.post("/api/shared/watchlist/update", (req, res) => {
+  const ws = requireWorkspace(res);
+  if (!ws) return;
+  const { id, patch } = req.body || {};
+  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
+  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
+    return res.status(400).json({ error: "patch object is required" });
+  }
+  const list = ws.loadWorkspaceWatchlist();
+  const idx = list.findIndex((t) => t.id === id);
+  if (idx === -1) return res.status(404).json({ error: "target not found" });
+
+  const current = list[idx];
+  const merged = { ...current, ...patch };
+  if (patch.platformOverrides && typeof patch.platformOverrides === "object" && !Array.isArray(patch.platformOverrides)) {
+    merged.platformOverrides = { ...(current.platformOverrides || {}), ...patch.platformOverrides };
+    for (const [key, value] of Object.entries(merged.platformOverrides)) {
+      if (!value || (value.minPrice == null && value.maxPrice == null)) {
+        delete merged.platformOverrides[key];
+      }
+    }
+  }
+  list[idx] = merged;
+  const saved = ws.saveWorkspaceWatchlist(list);
+  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+  res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
+});
+
 app.post("/api/shared/watchlist/delete", (req, res) => {
   const ws = requireWorkspace(res);
   if (!ws) return;

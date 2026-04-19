@@ -12,15 +12,30 @@ let sharedWatchlist = [];
 let sharedGroups = [];
 let carSettingsDirty = false;
 let sharedSettingsDirty = false;
+const FOUND_LISTINGS_STORAGE_KEY = "fbm-found-listings-columns";
 const sharedFoundDeals = {
   facebook: [],
   wallapop: [],
   vinted: [],
 };
+const foundListingsLoaded = {
+  cars: false,
+  facebook: false,
+  wallapop: false,
+  vinted: false,
+};
+// In-memory grade filter per platform. Set of selected letter grades; empty Set = show all.
+const sharedGradeFilter = {
+  facebook: new Set(),
+  wallapop: new Set(),
+  vinted: new Set(),
+};
+const SHARED_GRADE_LETTERS = ["A", "B", "C", "D", "F"];
 let currentTopTab = "cars";
 let currentCarView = "overview";
 let currentLogProcess = "car-sniper";
 let currentWatchGroup = "all";
+let currentSharedWatchGroup = "all";
 let currentFoundGroup = "all";
 let currentRejectedGroup = "all";
 let foundReloadTimer = null;
@@ -53,6 +68,55 @@ const PLATFORM_META = {
   },
 };
 
+const FOUND_LISTINGS_META = [
+  {
+    id: "cars",
+    label: "Cars",
+    process: "car-sniper",
+    description: "Original community car feed with full underwriting cards.",
+  },
+  ...Object.entries(PLATFORM_META).map(([id, meta]) => ({
+    id,
+    label: meta.label,
+    process: meta.process,
+    description: meta.description,
+  })),
+];
+
+function readFoundListingsColumnVisibility() {
+  const defaults = Object.fromEntries(FOUND_LISTINGS_META.map((column) => [column.id, true]));
+  try {
+    const raw = localStorage.getItem(FOUND_LISTINGS_STORAGE_KEY);
+    if (!raw) return defaults;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return defaults;
+    return FOUND_LISTINGS_META.reduce((acc, column) => {
+      acc[column.id] = parsed[column.id] !== false;
+      return acc;
+    }, {});
+  } catch {
+    return defaults;
+  }
+}
+
+let foundListingsColumnVisibility = readFoundListingsColumnVisibility();
+
+function showToast(message, tone = "ok") {
+  const host = document.getElementById("toastHost");
+  if (!host || !message) return;
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${tone}`;
+  toast.setAttribute("role", "status");
+  toast.textContent = message;
+  host.appendChild(toast);
+
+  const dismiss = () => {
+    toast.classList.add("toast-out");
+    window.setTimeout(() => toast.remove(), 220);
+  };
+  window.setTimeout(dismiss, 2800);
+}
+
 const DEFAULT_SHARED_CONFIG = {
   appName: "FBM Sniper Community",
   proxy: "",
@@ -74,9 +138,9 @@ const DEFAULT_SHARED_CONFIG = {
     },
   },
   bots: {
-    facebook: { enabled: false, pollIntervalSec: 90 },
-    wallapop: { enabled: false, pollIntervalSec: 60 },
-    vinted: { enabled: false, pollIntervalSec: 45, cookie: "" },
+    facebook: { pollIntervalSec: 90 },
+    wallapop: { pollIntervalSec: 60 },
+    vinted: { pollIntervalSec: 45, cookie: "", userAgent: "" },
   },
 };
 
@@ -114,9 +178,19 @@ function setActiveTopTab(tab) {
     flushTerminal();
     return;
   }
+  if (tab === "watchlist") {
+    loadSharedSettings();
+    renderSharedWatchlistTab();
+    return;
+  }
+  if (tab === "found-listings") {
+    loadFoundListingsDashboard();
+    return;
+  }
   if (PLATFORM_META[tab]) {
     loadSharedFound(tab);
     renderMarketplaceTab(tab);
+    flushSniperTerminal(PLATFORM_META[tab].process);
   }
 }
 
@@ -166,6 +240,7 @@ function connectWS() {
       });
       renderProcessGrid();
       renderAllMarketplaceTabs();
+      renderFoundListingsTab();
       refreshStatus();
       return;
     }
@@ -175,6 +250,7 @@ function connectWS() {
       processState[msg.process].stopping = msg.stopping || false;
       renderProcessGrid();
       renderAllMarketplaceTabs();
+      renderFoundListingsTab();
       return;
     }
 
@@ -236,13 +312,27 @@ function appendLogLine(procName, line, ts) {
   terminalBuffers[procName].push(div);
   if (terminalBuffers[procName].length > 1000) terminalBuffers[procName].shift();
   if (procName === currentLogProcess) flushTerminal();
+  flushSniperTerminal(procName);
 }
 
 function flushTerminal() {
   const terminal = document.getElementById("terminal");
+  if (!terminal) return;
   terminal.innerHTML = "";
   (terminalBuffers[currentLogProcess] || []).forEach((node) => terminal.appendChild(node.cloneNode(true)));
   if (document.getElementById("autoScroll")?.checked) terminal.scrollTop = terminal.scrollHeight;
+}
+
+function flushSniperTerminal(procName) {
+  const platform = Object.keys(PLATFORM_META).find((p) => PLATFORM_META[p].process === procName);
+  if (!platform) return;
+  const terminal = document.getElementById(`sniper-terminal-${platform}`);
+  if (!terminal) return;
+  terminal.innerHTML = "";
+  (terminalBuffers[procName] || []).forEach((node) => terminal.appendChild(node.cloneNode(true)));
+  if (document.getElementById(`sniperAutoScroll-${platform}`)?.checked) {
+    terminal.scrollTop = terminal.scrollHeight;
+  }
 }
 
 function clearLog() {
@@ -406,15 +496,189 @@ async function loadSharedFound(platform) {
   if (!PLATFORM_META[platform]) return;
   try {
     sharedFoundDeals[platform] = await fetch(`/api/shared/found/${platform}`).then((response) => response.json());
+    foundListingsLoaded[platform] = true;
     renderMarketplaceTab(platform);
   } catch {
     sharedFoundDeals[platform] = [];
+    foundListingsLoaded[platform] = true;
     renderMarketplaceTab(platform);
+  }
+  renderFoundListingsTab();
+}
+
+function persistFoundListingsColumnVisibility() {
+  try {
+    localStorage.setItem(FOUND_LISTINGS_STORAGE_KEY, JSON.stringify(foundListingsColumnVisibility));
+  } catch {
+    // localStorage can be unavailable in some embedded contexts.
+  }
+}
+
+function getFoundListingsColumns() {
+  return FOUND_LISTINGS_META
+    .filter((column) => foundListingsColumnVisibility[column.id] !== false)
+    .map((column) => {
+      const deals = column.id === "cars"
+        ? (Array.isArray(foundDeals) ? foundDeals : [])
+        : (Array.isArray(sharedFoundDeals[column.id]) ? sharedFoundDeals[column.id] : []);
+      const process = processState[column.process] || { running: false, stopping: false };
+      const loaded = typeof foundListingsLoaded === "object" && Object.prototype.hasOwnProperty.call(foundListingsLoaded, column.id)
+        ? Boolean(foundListingsLoaded[column.id])
+        : true;
+      return {
+        ...column,
+        deals,
+        count: deals.length,
+        process,
+        loaded,
+      };
+    });
+}
+
+function loadFoundListingsDashboard() {
+  renderFoundListingsTab();
+  loadFoundDeals();
+  Object.keys(PLATFORM_META).forEach((platform) => loadSharedFound(platform));
+}
+
+function toggleFoundListingsColumn(columnId) {
+  if (!FOUND_LISTINGS_META.some((column) => column.id === columnId)) return;
+  const willEnable = foundListingsColumnVisibility[columnId] === false;
+  foundListingsColumnVisibility = {
+    ...foundListingsColumnVisibility,
+    [columnId]: willEnable,
+  };
+  persistFoundListingsColumnVisibility();
+  renderFoundListingsTab();
+  const label = FOUND_LISTINGS_META.find((column) => column.id === columnId)?.label || "Column";
+  showToast(`${label} column ${willEnable ? "shown" : "hidden"}.`);
+}
+
+const foundListingsFilters = {
+  search: "",
+  platform: "all",
+  grade: "all",
+};
+
+function collectFoundListingsDeals() {
+  const all = [];
+  FOUND_LISTINGS_META.forEach((column) => {
+    if (foundListingsColumnVisibility[column.id] === false) return;
+    const deals = column.id === "cars"
+      ? (Array.isArray(foundDeals) ? foundDeals : [])
+      : (Array.isArray(sharedFoundDeals[column.id]) ? sharedFoundDeals[column.id] : []);
+    deals.forEach((deal) => all.push({ platform: column.id, deal }));
+  });
+  return all;
+}
+
+function dealMatchesFoundListingsFilters({ platform, deal }) {
+  if (foundListingsFilters.platform !== "all" && foundListingsFilters.platform !== platform) return false;
+  if (foundListingsFilters.grade !== "all") {
+    const { tier } = classifyDealTier(deal, deal?.grade);
+    if (foundListingsFilters.grade === "good" && tier !== "good") return false;
+    if (foundListingsFilters.grade === "okay" && tier !== "good" && tier !== "okay") return false;
+  }
+  const search = foundListingsFilters.search.trim().toLowerCase();
+  if (search) {
+    const title = String(
+      deal?.title
+        || deal?.listing?.title
+        || deal?.item?.title
+        || deal?.model
+        || ""
+    ).toLowerCase();
+    if (!title.includes(search)) return false;
+  }
+  return true;
+}
+
+function dealTimestampValue(deal) {
+  const raw = deal?.timestamp
+    || deal?.created_at
+    || deal?.createdAt
+    || deal?.item?.created_at
+    || deal?.listing?.created_at;
+  if (!raw) return 0;
+  const num = Number(raw);
+  if (Number.isFinite(num) && num > 0) return num < 1e12 ? num * 1000 : num;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function renderFoundListingsTab() {
+  const toggleBar = document.getElementById("foundListingsColumnToggles");
+  const grid = document.getElementById("foundListingsGrid");
+  if (!toggleBar || !grid) return;
+
+  toggleBar.innerHTML = FOUND_LISTINGS_META.map((column) => {
+    const active = foundListingsColumnVisibility[column.id] !== false;
+    const count = column.id === "cars"
+      ? (Array.isArray(foundDeals) ? foundDeals.length : 0)
+      : (Array.isArray(sharedFoundDeals[column.id]) ? sharedFoundDeals[column.id].length : 0);
+    return `
+      <button class="chip-btn found-column-chip ${active ? "active" : ""}" onclick="toggleFoundListingsColumn('${column.id}')">
+        ${escHtml(column.label)} <strong>${count}</strong>
+      </button>
+    `;
+  }).join("");
+
+  wireFoundListingsFilterInputs();
+
+  const anyColumnVisible = FOUND_LISTINGS_META.some((column) => foundListingsColumnVisibility[column.id] !== false);
+  if (!anyColumnVisible) {
+    grid.innerHTML = '<div class="sniper-empty found-board-empty">Enable at least one platform chip to see listings.</div>';
+    return;
+  }
+
+  const deals = collectFoundListingsDeals()
+    .filter(dealMatchesFoundListingsFilters)
+    .sort((a, b) => dealTimestampValue(b.deal) - dealTimestampValue(a.deal));
+
+  if (!deals.length) {
+    grid.innerHTML = '<div class="sniper-empty found-board-empty">No listings match your filters yet.</div>';
+    return;
+  }
+
+  grid.innerHTML = deals.slice(0, 120).map(({ platform, deal }) => {
+    if (platform === "cars") return buildFoundCarDealCard(deal, foundDeals.indexOf(deal));
+    return buildSharedDealCard(platform, deal);
+  }).join("");
+}
+
+function wireFoundListingsFilterInputs() {
+  const searchEl = document.getElementById("foundListingsSearch");
+  if (searchEl && !searchEl.dataset.wired) {
+    searchEl.value = foundListingsFilters.search;
+    searchEl.addEventListener("input", () => {
+      foundListingsFilters.search = searchEl.value;
+      renderFoundListingsTab();
+    });
+    searchEl.dataset.wired = "1";
+  }
+  const platformEl = document.getElementById("foundListingsPlatformFilter");
+  if (platformEl && !platformEl.dataset.wired) {
+    platformEl.value = foundListingsFilters.platform;
+    platformEl.addEventListener("change", () => {
+      foundListingsFilters.platform = platformEl.value;
+      renderFoundListingsTab();
+    });
+    platformEl.dataset.wired = "1";
+  }
+  const gradeEl = document.getElementById("foundListingsGradeFilter");
+  if (gradeEl && !gradeEl.dataset.wired) {
+    gradeEl.value = foundListingsFilters.grade;
+    gradeEl.addEventListener("change", () => {
+      foundListingsFilters.grade = gradeEl.value;
+      renderFoundListingsTab();
+    });
+    gradeEl.dataset.wired = "1";
   }
 }
 
 function renderAllMarketplaceTabs() {
   Object.keys(PLATFORM_META).forEach((platform) => renderMarketplaceTab(platform));
+  renderSharedWatchlistTab();
 }
 
 function renderMarketplaceTab(platform) {
@@ -424,63 +688,369 @@ function renderMarketplaceTab(platform) {
   const meta = PLATFORM_META[platform];
   const info = processState[meta.process] || { running: false, stopping: false, label: `${meta.label} Sniper` };
   const botConfig = normalizeSharedConfig(sharedConfig).bots[platform];
-  const deals = Array.isArray(sharedFoundDeals[platform]) ? sharedFoundDeals[platform] : [];
-  const totalTargets = sharedWatchlist.filter((target) => targetAppliesToPlatform(target, platform)).length;
+  const allDeals = Array.isArray(sharedFoundDeals[platform]) ? sharedFoundDeals[platform] : [];
+  const gradeCounts = countDealsByGrade(allDeals);
+  const activeGrades = sharedGradeFilter[platform] instanceof Set ? sharedGradeFilter[platform] : new Set();
+  const deals = activeGrades.size === 0
+    ? allDeals
+    : allDeals.filter((d) => activeGrades.has(String(d?.grade || "").toUpperCase()));
   const enabledTargets = sharedWatchlist.filter((target) => target.enabled !== false && targetAppliesToPlatform(target, platform)).length;
   const badgeClass = info.running ? (info.stopping ? "badge-stopping" : "badge-running") : "badge-stopped";
   const badgeText = info.running ? (info.stopping ? "Stopping" : "Running") : "Stopped";
+  const proxyCount = Array.isArray(sharedConfig.proxyPool) ? sharedConfig.proxyPool.length : 0;
+  const proxyBadgeClass = proxyCount ? "sniper-proxy-ok" : "sniper-proxy-none";
+  const proxyBadgeText = proxyCount ? `${proxyCount} proxy${proxyCount === 1 ? "" : "ies"}` : "No proxies";
 
   mount.innerHTML = `
-    <div class="platform-shell">
-      <section class="hero-panel">
-        <div class="platform-header">
+    <div class="sniper-shell">
+      <div class="sniper-top">
+        <div class="sniper-control">
           <div>
-            <h2>${escHtml(meta.label)}</h2>
-            <p class="panel-copy">${escHtml(meta.description)}</p>
+            <div class="process-name">${escHtml(meta.label)} Sniper</div>
+            <div class="process-desc">${escHtml(meta.description)}</div>
           </div>
-          <span class="badge ${badgeClass}">${badgeText}</span>
-        </div>
-        <div class="process-actions">
-          <button class="btn btn-start" ${info.running ? "disabled" : ""} onclick="startNamedProcess('${meta.process}')">Start</button>
-          <button class="btn btn-stop" ${!info.running || info.stopping ? "disabled" : ""} onclick="stopNamedProcess('${meta.process}')">Stop</button>
-          <button class="btn btn-logs" onclick="goToLogs('${meta.process}')">Logs</button>
-          <button class="btn btn-secondary" onclick="loadSharedFound('${platform}')">Refresh Deals</button>
-        </div>
-        <div class="marketplace-metrics">
-          <div class="market-metric">
-            <span class="market-metric-label">Enabled Targets</span>
-            <strong>${enabledTargets}</strong>
-          </div>
-          <div class="market-metric">
-            <span class="market-metric-label">Total Targets</span>
-            <strong>${totalTargets}</strong>
-          </div>
-          <div class="market-metric">
-            <span class="market-metric-label">Poll Interval</span>
-            <strong>${formatNumber(botConfig.pollIntervalSec)} sec</strong>
-          </div>
-          <div class="market-metric">
-            <span class="market-metric-label">Bot Enabled</span>
-            <strong>${botConfig.enabled !== false ? "Yes" : "No"}</strong>
+          <div class="sniper-control-actions">
+            <span class="badge ${badgeClass}">${badgeText}</span>
+            <button class="btn btn-start" ${info.running ? "disabled" : ""} onclick="startNamedProcess('${meta.process}')">Start</button>
+            <button class="btn btn-stop" ${!info.running || info.stopping ? "disabled" : ""} onclick="stopNamedProcess('${meta.process}')">Stop</button>
           </div>
         </div>
-      </section>
+        <div class="sniper-settings-strip">
+          <div class="sniper-setting-item">
+            <label for="sniper-${platform}-poll">Poll every</label>
+            <input type="number" id="sniper-${platform}-poll" min="5" max="600" step="1" value="${formatNumber(botConfig.pollIntervalSec || 60)}" />
+            <span class="sniper-setting-unit">s</span>
+          </div>
+          ${platform === "vinted" ? buildVintedExtraSettings(botConfig) : ""}
+          <div class="sniper-setting-item">
+            <button class="btn btn-secondary btn-sm" onclick="applyBotSettings('${platform}')">Apply</button>
+            <span class="sniper-setting-hint">Takes effect on next Start</span>
+          </div>
+          <div class="sniper-setting-item sniper-setting-meta">
+            <span class="sniper-proxy-badge ${proxyBadgeClass}">${proxyBadgeText}</span>
+            <span class="sniper-proxy-badge sniper-proxy-info">${enabledTargets} target${enabledTargets === 1 ? "" : "s"}</span>
+          </div>
+        </div>
+      </div>
 
-      <section class="market-panel">
-        <div class="platform-header">
-          <div>
-            <h2>Recent Deals</h2>
-            <p class="panel-copy">Latest shared marketplace finds from <code>/api/shared/found/${platform}</code>.</p>
+      <div class="sniper-body">
+        <section class="sniper-pane sniper-deals">
+          <div class="sniper-pane-head">
+            <h3>Live Deals</h3>
+            <span class="live-pill">Newest first</span>
+            <button class="btn btn-secondary btn-sm" onclick="loadSharedFound('${platform}')" style="margin-left:auto">Refresh</button>
           </div>
-        </div>
-        <div class="deal-list">
-          ${deals.length
-            ? deals.map((deal) => buildSharedDealCard(platform, deal)).join("")
-            : '<div class="empty">No deals saved for this platform yet.</div>'}
-        </div>
-      </section>
+          <div class="sniper-grade-filters" role="group" aria-label="Filter ${escAttr(meta.label)} deals by grade (multi-select)">
+            <button class="chip-btn grade-chip ${activeGrades.size === 0 ? "active" : ""}"
+              onclick="clearSharedGradeFilter('${platform}')"
+              title="Show every grade">All <strong>${allDeals.length}</strong></button>
+            ${SHARED_GRADE_LETTERS.map((g) => {
+              const count = gradeCounts[g] || 0;
+              const active = activeGrades.has(g) ? "active" : "";
+              const tierCls = ` grade-chip-${g.toLowerCase()}`;
+              return `<button class="chip-btn grade-chip${tierCls} ${active}"
+                aria-pressed="${activeGrades.has(g) ? "true" : "false"}"
+                onclick="toggleSharedGradeFilter('${platform}','${g}')"
+                title="Toggle Grade ${g}">Grade ${g} <strong>${count}</strong></button>`;
+            }).join("")}
+          </div>
+          <div id="sniper-deals-${platform}" class="sniper-card-grid">
+            ${deals.length
+              ? deals.map((deal) => buildSharedDealCard(platform, deal)).join("")
+              : `<div class="sniper-empty">${
+                  allDeals.length
+                    ? `No ${escHtml(meta.label)} deals match <strong>${escHtml(activeGrades.size ? Array.from(activeGrades).map((g) => "Grade " + g).join(" + ") : "the filter")}</strong>.`
+                    : `Waiting for the first ${escHtml(meta.label)} hit…`
+                }</div>`}
+          </div>
+        </section>
+
+        <section class="sniper-pane sniper-logs">
+          <div class="sniper-pane-head">
+            <h3>Live Log</h3>
+            <label class="autoscroll">
+              <input type="checkbox" id="sniperAutoScroll-${platform}" checked />
+              Auto-scroll
+            </label>
+          </div>
+          <div id="sniper-terminal-${platform}" class="terminal sniper-terminal"></div>
+        </section>
+      </div>
     </div>
   `;
+
+  flushSniperTerminal(meta.process);
+}
+
+function buildVintedExtraSettings(botConfig) {
+  const cookie = botConfig.cookie || "";
+  const ua = botConfig.userAgent || "";
+  return `
+    <div class="sniper-setting-item sniper-setting-cookie">
+      <label for="sniper-vinted-cookie">Cookie</label>
+      <input type="password" id="sniper-vinted-cookie" placeholder="Paste access_token_web=... cookie" autocomplete="off" value="${escAttr(cookie)}" />
+    </div>
+    <div class="sniper-setting-item sniper-setting-cookie">
+      <label for="sniper-vinted-ua">User-Agent</label>
+      <input type="text" id="sniper-vinted-ua" placeholder="Paste matching browser UA" autocomplete="off" value="${escAttr(ua)}" />
+    </div>
+  `;
+}
+
+async function applyBotSettings(platform) {
+  if (!PLATFORM_META[platform]) return;
+  const pollEl = document.getElementById(`sniper-${platform}-poll`);
+  const pollRaw = Number(pollEl?.value || 0);
+  const poll = Number.isFinite(pollRaw) && pollRaw > 0 ? Math.round(pollRaw) : undefined;
+  const nextBot = {
+    ...normalizeSharedConfig(sharedConfig).bots[platform],
+  };
+  if (poll) nextBot.pollIntervalSec = poll;
+  if (platform === "vinted") {
+    nextBot.cookie = document.getElementById("sniper-vinted-cookie")?.value.trim() || "";
+    nextBot.userAgent = document.getElementById("sniper-vinted-ua")?.value.trim() || "";
+  }
+  const nextConfig = normalizeSharedConfig({
+    ...sharedConfig,
+    bots: { ...normalizeSharedConfig(sharedConfig).bots, [platform]: nextBot },
+  });
+  try {
+    const res = await fetch("/api/shared/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config: nextConfig, watchlist: sharedWatchlist }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    sharedConfig = nextConfig;
+    renderMarketplaceTab(platform);
+    showToast(`${PLATFORM_META[platform].label} sniper settings saved.`);
+  } catch (err) {
+    alert(`Failed to save ${platform} settings: ${err.message}`);
+  }
+}
+
+function renderSharedWatchlistTab() {
+  const container = document.getElementById("sharedWatchlistCards");
+  if (!container) return;
+
+  const statsPill = document.getElementById("sharedWatchStatsPill");
+  if (statsPill) {
+    const active = sharedWatchlist.filter((t) => t.enabled !== false).length;
+    statsPill.textContent = `${active}/${sharedWatchlist.length} active`;
+  }
+
+  const groups = buildSharedGroups(sharedWatchlist);
+  const counts = {};
+  for (const t of sharedWatchlist) {
+    const g = t.group || "General";
+    counts[g] = (counts[g] || 0) + 1;
+  }
+  renderGroupFilters("sharedWatchGroupFilters", currentSharedWatchGroup, (group) => {
+    currentSharedWatchGroup = group;
+    renderSharedWatchlistTab();
+  }, counts);
+
+  if (!sharedWatchlist.length) {
+    container.innerHTML = '<div class="empty">No shared targets yet. Add one to start sniping Facebook, Wallapop, or Vinted.</div>';
+    return;
+  }
+
+  const filtered = sharedWatchlist.filter(
+    (t) => currentSharedWatchGroup === "all" || (t.group || "General") === currentSharedWatchGroup
+  );
+  if (!filtered.length) {
+    container.innerHTML = '<div class="empty">No shared targets in this group.</div>';
+    return;
+  }
+
+  const visibleGroups = [...new Set(filtered.map((t) => t.group || "General"))];
+  container.innerHTML = visibleGroups.map((group) => {
+    const targets = filtered.filter((t) => (t.group || "General") === group);
+    return `
+      <div class="watch-group-block">
+        <div class="watch-group-head">
+          <div class="watch-group-head-left">
+            <span class="watch-group-title">${escHtml(group)}</span>
+            <span class="watch-group-meta">${targets.length} target${targets.length === 1 ? "" : "s"}</span>
+          </div>
+        </div>
+        <div class="watch-grid" data-group="${escAttr(group)}">
+          ${targets.map((target) => buildSharedWatchCard(target)).join("")}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function buildSharedWatchCard(target) {
+  const globallyOff = target.enabled === false;
+  const platforms = ["facebook", "wallapop", "vinted"];
+  const chipsHtml = platforms.map((p) => buildSharedWatchSiteChip(target, p)).join("");
+
+  const facts = [];
+  if (target.minPrice != null || target.maxPrice != null) {
+    facts.push(`<div class="watch-fact">Search band <strong>${formatEuro(target.minPrice)}</strong> to <strong>${formatEuro(target.maxPrice)}</strong></div>`);
+  }
+  if ((target.mustInclude || []).length) {
+    facts.push(`<div class="watch-fact">Must include: <strong>${escHtml(target.mustInclude.join(", "))}</strong></div>`);
+  }
+  if ((target.mustAvoid || []).length) {
+    facts.push(`<div class="watch-fact">Must avoid: <strong>${escHtml(target.mustAvoid.join(", "))}</strong></div>`);
+  }
+  if ((target.aliases || []).length) {
+    facts.push(`<div class="watch-fact">Aliases: <strong>${escHtml(target.aliases.slice(0, 4).join(", "))}</strong></div>`);
+  }
+
+  return `
+    <article class="watch-card shared-watch-card" data-target-id="${escAttr(target.id)}">
+      <div class="watch-top">
+        <div>
+          <div class="watch-title">${escHtml(target.label)}${globallyOff ? ' <span class="pill pill-warn">Globally off</span>' : ""}</div>
+          <div class="watch-query">Query: ${escHtml(target.query || "(none)")}</div>
+        </div>
+        <div class="watch-badges">
+          <span class="badge ${globallyOff ? "badge-disabled" : "badge-enabled"}">${globallyOff ? "Off" : "On"}</span>
+          <button class="watch-toggle-btn ${globallyOff ? "off" : "on"}" onclick="toggleSharedTargetEnabled('${escAttr(target.id)}', ${globallyOff ? "true" : "false"})">
+            ${globallyOff ? "Turn On" : "Turn Off"}
+          </button>
+        </div>
+      </div>
+      <div class="watch-site-chips">${chipsHtml}</div>
+      <div class="watch-facts">${facts.join("")}</div>
+      <div class="watch-card-actions">
+        <span class="watch-drag-hint">${escHtml(target.group || "General")}</span>
+        <button class="watch-action-btn danger" onclick="deleteSharedTarget('${escAttr(target.id)}')">Delete</button>
+      </div>
+    </article>
+  `;
+}
+
+function buildSharedWatchSiteChip(target, platform) {
+  const meta = PLATFORM_META[platform];
+  const on = targetAppliesToPlatform(target, platform);
+  const override = (target.platformOverrides || {})[platform] || {};
+  const globalMin = target.minPrice == null ? "" : target.minPrice;
+  const globalMax = target.maxPrice == null ? "" : target.maxPrice;
+  const minVal = override.minPrice == null ? "" : override.minPrice;
+  const maxVal = override.maxPrice == null ? "" : override.maxPrice;
+
+  return `
+    <div class="watch-site-chip ${on ? "is-on" : "is-off"}" data-platform="${platform}">
+      <label class="watch-site-chip-head">
+        <input type="checkbox" ${on ? "checked" : ""}
+          onchange="togglePlatformForTarget('${escAttr(target.id)}', '${platform}', this.checked)" />
+        <span class="watch-site-chip-name">${escHtml(meta.label)}</span>
+      </label>
+      <div class="watch-site-chip-prices">
+        <label>
+          <span>Min €</span>
+          <input type="number" min="0" step="1" value="${escAttr(minVal)}"
+            placeholder="${escAttr(globalMin === "" ? "—" : String(globalMin))}"
+            onchange="setPlatformPriceOverride('${escAttr(target.id)}', '${platform}', 'minPrice', this.value)"
+            ${on ? "" : "disabled"} />
+        </label>
+        <label>
+          <span>Max €</span>
+          <input type="number" min="0" step="1" value="${escAttr(maxVal)}"
+            placeholder="${escAttr(globalMax === "" ? "—" : String(globalMax))}"
+            onchange="setPlatformPriceOverride('${escAttr(target.id)}', '${platform}', 'maxPrice', this.value)"
+            ${on ? "" : "disabled"} />
+        </label>
+      </div>
+    </div>
+  `;
+}
+
+async function toggleSharedTargetEnabled(targetId, enabled) {
+  await postWatchlistUpdate(targetId, { enabled });
+}
+
+function openSharedAddTargetEmpty() {
+  openAddTargetForPlatform("facebook");
+}
+
+async function togglePlatformForTarget(targetId, platform, enabled) {
+  const target = sharedWatchlist.find((t) => t.id === targetId);
+  if (!target) return;
+  const current = Array.isArray(target.platforms) ? target.platforms.slice() : [];
+  const next = enabled
+    ? [...new Set([...current, platform])]
+    : current.filter((p) => p !== platform);
+  await postWatchlistUpdate(targetId, { platforms: next });
+}
+
+let pricePatchTimer = null;
+async function setPlatformPriceOverride(targetId, platform, field, rawValue) {
+  const target = sharedWatchlist.find((t) => t.id === targetId);
+  if (!target) return;
+  const trimmed = String(rawValue ?? "").trim();
+  const existing = (target.platformOverrides || {})[platform] || { minPrice: null, maxPrice: null };
+  const nextValue = trimmed === "" ? null : Number(trimmed);
+  if (trimmed !== "" && !Number.isFinite(nextValue)) return;
+  const nextOverride = { ...existing, [field]: nextValue };
+  await postWatchlistUpdate(targetId, { platformOverrides: { [platform]: nextOverride } });
+}
+
+async function deleteSharedTarget(targetId) {
+  const target = sharedWatchlist.find((t) => t.id === targetId);
+  if (!target) return;
+  if (!confirm(`Delete "${target.label}" from the shared watchlist? This removes it from all platforms.`)) return;
+  const response = await fetch("/api/shared/watchlist/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: targetId }),
+  });
+  if (!response.ok) return;
+  await loadSharedSettings();
+  renderAllMarketplaceTabs();
+  showToast(`Deleted ${target.label}.`);
+}
+
+async function postWatchlistUpdate(targetId, patch) {
+  const response = await fetch("/api/shared/watchlist/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: targetId, patch }),
+  });
+  if (!response.ok) return;
+  const data = await response.json();
+  if (data?.target) {
+    const idx = sharedWatchlist.findIndex((t) => t.id === targetId);
+    if (idx !== -1) sharedWatchlist[idx] = data.target;
+    renderAllMarketplaceTabs();
+    const patchKeys = Object.keys(patch || {});
+    if (patchKeys.some((key) => key === "enabled" || key === "platforms")) {
+      showToast("Shared watchlist updated.");
+    }
+  }
+}
+
+function openAddTargetForPlatform(platform) {
+  const sample = {
+    label: "",
+    query: "",
+    group: "General",
+    enabled: true,
+    product: "iphone",
+    platforms: [platform],
+    aliases: [],
+    mustInclude: [],
+    mustAvoid: [],
+    minPrice: null,
+    maxPrice: null,
+    allowShipping: true,
+    platformOverrides: {},
+  };
+  openSharedAddTarget(sample);
+}
+
+function openSharedAddTarget(preset) {
+  const drawer = document.getElementById("addTargetDrawer");
+  const textarea = document.getElementById("manualTargetJson");
+  if (!drawer || !textarea) return;
+  textarea.value = JSON.stringify(preset, null, 2);
+  textarea.dataset.mode = "shared";
+  drawer.classList.add("open");
 }
 
 function renderSharedSettings() {
@@ -584,10 +1154,6 @@ function buildBotFieldset(platform, botConfig) {
   return `
     <fieldset class="bot-settings-card">
       <legend>${escHtml(meta.label)} Bot</legend>
-      <div class="form-field checkbox-field">
-        <label for="bot-${platform}-enabled">Enabled</label>
-        <input id="bot-${platform}-enabled" type="checkbox" ${botConfig.enabled !== false ? "checked" : ""} />
-      </div>
       <div class="form-field">
         <label for="bot-${platform}-poll">Poll Interval (sec)</label>
         <input id="bot-${platform}-poll" class="quick-input" type="number" min="5" step="5" value="${escAttr(botConfig.pollIntervalSec ?? "")}" />
@@ -595,7 +1161,11 @@ function buildBotFieldset(platform, botConfig) {
       ${platform === "vinted" ? `
         <div class="form-field form-field-wide">
           <label for="bot-vinted-cookie">Vinted Cookie</label>
-          <textarea id="bot-vinted-cookie" class="quick-input quick-textarea" rows="4" placeholder="Optional manual cookie override">${escHtml(botConfig.cookie || "")}</textarea>
+          <textarea id="bot-vinted-cookie" class="quick-input quick-textarea" rows="4" placeholder="Optional manual cookie override (must contain access_token_web=...)">${escHtml(botConfig.cookie || "")}</textarea>
+        </div>
+        <div class="form-field form-field-wide">
+          <label for="bot-vinted-ua">Vinted User-Agent</label>
+          <input id="bot-vinted-ua" class="quick-input" type="text" value="${escAttr(botConfig.userAgent || "")}" placeholder="Paste the exact UA the cookie was minted in (DevTools → Network → any request → Headers → user-agent). Leave blank for mobile Safari default." />
         </div>
       ` : ""}
     </fieldset>
@@ -634,19 +1204,17 @@ function readSharedSettingsForm() {
     bots: {
       facebook: {
         ...base.bots.facebook,
-        enabled: !!document.getElementById("bot-facebook-enabled")?.checked,
         pollIntervalSec: clampNumber(document.getElementById("bot-facebook-poll")?.value, 5, 3600, base.bots.facebook.pollIntervalSec),
       },
       wallapop: {
         ...base.bots.wallapop,
-        enabled: !!document.getElementById("bot-wallapop-enabled")?.checked,
         pollIntervalSec: clampNumber(document.getElementById("bot-wallapop-poll")?.value, 5, 3600, base.bots.wallapop.pollIntervalSec),
       },
       vinted: {
         ...base.bots.vinted,
-        enabled: !!document.getElementById("bot-vinted-enabled")?.checked,
         pollIntervalSec: clampNumber(document.getElementById("bot-vinted-poll")?.value, 5, 3600, base.bots.vinted.pollIntervalSec),
         cookie: document.getElementById("bot-vinted-cookie")?.value.trim() || "",
+        userAgent: document.getElementById("bot-vinted-ua")?.value.trim() || "",
       },
     },
   };
@@ -685,6 +1253,7 @@ async function saveSharedSettings() {
   renderSharedSettings();
   renderAllMarketplaceTabs();
   setSharedSettingsStatus("Shared marketplace settings saved.", "ok");
+  showToast("Shared marketplace settings saved.");
 }
 
 function reloadSharedSettings() {
@@ -711,6 +1280,43 @@ function targetAppliesToPlatform(target, platform) {
   return (platforms.length ? platforms : ["facebook"]).includes(platform);
 }
 
+function classifyDealTier(deal, grade) {
+  const price = [
+    deal?.listing_price,
+    deal?.listingPrice,
+    deal?.listing?.price,
+    deal?.item?.price,
+    deal?.price,
+  ].map(Number).find((value) => Number.isFinite(value) && value > 0);
+  const ceiling = [
+    deal?.ceiling,
+    deal?.max_buy_all_in,
+    deal?.max_buy,
+    deal?.maxBuy,
+    deal?.target?.maxPrice,
+    deal?.market?.maxBuy,
+  ].map(Number).find((value) => Number.isFinite(value) && value > 0);
+  if (Number.isFinite(price) && Number.isFinite(ceiling) && ceiling > 0) {
+    const ratio = price / ceiling;
+    if (ratio <= 0.85) return { tier: "good", label: "Great deal" };
+    if (ratio <= 1.0)  return { tier: "okay", label: "Fair price" };
+    return { tier: "steep", label: "Above ceiling" };
+  }
+  return { tier: "", label: "" };
+}
+
+function foundPlatformBadgeClass(platform) {
+  if (platform === "cars") return "badge-platform-cars";
+  if (platform === "wallapop") return "badge-platform-wallapop";
+  if (platform === "vinted") return "badge-platform-vinted";
+  return "badge-platform-facebook";
+}
+
+function formatFoundPlatformLabel(platform) {
+  if (platform === "cars") return "Cars";
+  return PLATFORM_META[platform]?.label || platform || "Unknown";
+}
+
 function buildSharedDealCard(platform, deal) {
   const title = deal?.title || deal?.listing?.title || deal?.item?.title || deal?.model || "Marketplace deal";
   const grade = String(deal?.grade || "?" ).toUpperCase();
@@ -726,17 +1332,49 @@ function buildSharedDealCard(platform, deal) {
   const groupLabel = deal?.target?.group || "General";
   const url = deal?.url || deal?.listing?.url || deal?.item?.url || "";
   const timestamp = deal?.timestamp || deal?.created_at || deal?.createdAt || deal?.item?.created_at;
+  const platformLabel = formatFoundPlatformLabel(platform);
+  const platformBadgeClass = foundPlatformBadgeClass(platform);
+  const { tier, label: tierLabel } = classifyDealTier(deal, grade);
+  const tierClass = tier ? `deal-tier-${tier}` : "";
+  const tierPill = tier ? `<span class="deal-tier-pill ${tier}">${escHtml(tierLabel)}</span>` : "";
+  const cardId = `shared-${platform}-${deal?.item?.id || deal?.listing?.id || deal?.id || String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const photoHtml = photos.length
+    ? `
+      <div class="car-img-wrap shared-photo-wrap" data-card-id="${escAttr(cardId)}" data-photos='${escAttr(JSON.stringify(photos))}' onclick="cyclePhoto(event, this, 1)">
+        <img class="car-img shared-photo-img" src="${escAttr(photos[0])}" alt="${escAttr(title)}" onerror="this.parentElement.querySelector('.car-img-placeholder') && (this.style.display='none')" />
+        ${photos.length > 1 ? `
+          <button type="button" class="img-nav img-nav-prev" aria-label="Previous photo" onclick="cyclePhoto(event, this.parentElement, -1)">‹</button>
+          <button type="button" class="img-nav img-nav-next" aria-label="Next photo" onclick="cyclePhoto(event, this.parentElement, 1)">›</button>
+          <div class="img-dots">
+            ${photos.map((_, index) => `<span class="img-dot${index === 0 ? " active" : ""}"></span>`).join("")}
+          </div>
+          <span class="img-count">1 / ${photos.length}</span>
+        ` : ""}
+      </div>
+    `
+    : `
+      <div class="car-img-wrap shared-photo-wrap shared-photo-wrap-empty">
+        <div class="car-img-placeholder">No photo</div>
+      </div>
+    `;
 
   return `
-    <article class="deal-card market-deal-card">
-      ${photos[0] ? `<img class="deal-photo-thumb" src="${escAttr(photos[0])}" alt="${escAttr(title)}" />` : ""}
+    <article class="deal-card market-deal-card ${tierClass}">
+      ${photoHtml}
       <div class="market-deal-body">
         <div class="market-deal-top">
           <div>
+            <div class="found-card-kicker">
+              <span class="badge ${platformBadgeClass}">${escHtml(platformLabel)}</span>
+              <span>Found Listing</span>
+            </div>
             <div class="process-name">${escHtml(title)}</div>
-            <div class="process-desc">${escHtml([PLATFORM_META[platform].label, ...sellerBits].join(" · ") || PLATFORM_META[platform].label)}</div>
+            <div class="process-desc">${escHtml(sellerBits.join(" · ") || targetLabel)}</div>
           </div>
-          <span class="badge ${gradeBadgeClass(grade)}">${escHtml(grade)}</span>
+          <div class="market-deal-badges">
+            ${tierPill}
+            <span class="badge ${gradeBadgeClass(grade)}">${escHtml(grade)}</span>
+          </div>
         </div>
         <div class="marketplace-metrics compact">
           <div class="market-metric">
@@ -759,7 +1397,9 @@ function buildSharedDealCard(platform, deal) {
         ${reasons.length ? `<div class="car-notes">${escHtml(reasons.join(" • "))}</div>` : ""}
         <div class="car-footer">
           <div class="car-target-label">${escHtml(timestamp ? new Date(timestamp).toLocaleString() : "Latest shared deal")}</div>
-          <button class="car-open-btn" onclick="openInBrowser('${escAttr(url)}')">Open ↗</button>
+          <div class="car-actions">
+            <button class="car-open-btn" onclick="openInBrowser('${escAttr(url)}')">Open ↗</button>
+          </div>
         </div>
       </div>
     </article>
@@ -767,19 +1407,70 @@ function buildSharedDealCard(platform, deal) {
 }
 
 function collectSharedPhotoUrls(deal) {
-  return [
+  const seen = new Set();
+  const pools = [
     ...(Array.isArray(deal?.listing?.photos) ? deal.listing.photos : []),
+    ...(Array.isArray(deal?.photos) ? deal.photos : []),
     ...(Array.isArray(deal?.item?.photos) ? deal.item.photos : []),
-  ]
-    .map((photo) => (typeof photo === "string" ? photo : photo?.full_size_url || photo?.full_url || photo?.url || photo?.imageUrl || ""))
-    .filter(Boolean)
-    .slice(0, 3);
+    ...(Array.isArray(deal?.item?.images) ? deal.item.images : []),
+    ...(Array.isArray(deal?.images) ? deal.images : []),
+  ];
+
+  return pools
+    .map((photo) => {
+      if (typeof photo === "string") return photo;
+      return photo?.full_size_url
+        || photo?.full_url
+        || photo?.url
+        || photo?.imageUrl
+        || photo?.image?.uri
+        || photo?.image?.url
+        || photo?.uri
+        || photo?.urls?.original
+        || photo?.urls?.big
+        || photo?.urls?.medium
+        || photo?.urls?.small
+        || "";
+    })
+    .filter((photo) => {
+      if (!photo || seen.has(photo)) return false;
+      seen.add(photo);
+      return true;
+    })
+    .slice(0, 6);
 }
 
 function gradeBadgeClass(grade) {
   if (["A", "B"].includes(grade)) return "badge-running";
   if (["C", "D"].includes(grade)) return "badge-stopping";
   return "badge-stopped";
+}
+
+function countDealsByGrade(deals) {
+  return deals.reduce((acc, d) => {
+    const g = String(d?.grade || "").toUpperCase();
+    if (g) acc[g] = (acc[g] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function toggleSharedGradeFilter(platform, grade) {
+  if (!PLATFORM_META[platform]) return;
+  if (!SHARED_GRADE_LETTERS.includes(grade)) return;
+  let set = sharedGradeFilter[platform];
+  if (!(set instanceof Set)) {
+    set = new Set();
+    sharedGradeFilter[platform] = set;
+  }
+  if (set.has(grade)) set.delete(grade);
+  else set.add(grade);
+  renderMarketplaceTab(platform);
+}
+
+function clearSharedGradeFilter(platform) {
+  if (!PLATFORM_META[platform]) return;
+  sharedGradeFilter[platform] = new Set();
+  renderMarketplaceTab(platform);
 }
 
 /* ── Watchlist ──────────────────────────────────────────────────────────────── */
@@ -863,7 +1554,9 @@ function renderWatchlist() {
 /* ── Found deals ────────────────────────────────────────────────────────────── */
 async function loadFoundDeals() {
   foundDeals = await fetch("/api/found").then((r) => r.json());
+  foundListingsLoaded.cars = true;
   renderFoundDeals();
+  renderFoundListingsTab();
 }
 
 function renderFoundDeals() {
@@ -889,6 +1582,101 @@ function renderFoundDeals() {
   }
 
   container.innerHTML = filtered.map((deal) => buildCarCard(deal, foundDeals.indexOf(deal))).join("");
+}
+
+function buildFoundCarDealCard(deal, dealIndex) {
+  const id = deal.listing?.id || `car-${Number.isFinite(dealIndex) ? dealIndex : Math.random()}`;
+  const photos = Array.isArray(deal.listing?.photos) ? deal.listing.photos.filter(Boolean) : [];
+  const verdict = deal.underwriting?.verdict || "pass";
+  const targetType = getTargetType(deal);
+  const issues = [...new Set([...(deal.vehicle?.issues || []), ...(deal.ai_analysis?.visible_issues || [])])].slice(0, 3);
+  const margin = deal.market?.estimatedMargin ?? null;
+  const risk = deal.underwriting?.riskScore ?? null;
+  const notes = deal.ai_analysis?.notes || deal.underwriting?.notes || deal.underwriting?.summary || "No underwriting summary.";
+  const subline = buildDealSubline(deal);
+  const specsHtml = buildDealSpecPills(deal, targetType);
+  const openUrl = deal.sources?.listingUrl || deal.listing?.url || "";
+  const tierClass = verdict === "buy_now" ? "deal-tier-good" : verdict === "maybe" ? "deal-tier-okay" : "";
+  const tierPill = verdict === "buy_now"
+    ? '<span class="deal-tier-pill good">Buy now</span>'
+    : verdict === "maybe"
+      ? '<span class="deal-tier-pill okay">Maybe</span>'
+      : "";
+  const marginTone = margin === null ? "" : margin >= 2000 ? "good" : margin >= 500 ? "warn" : "bad";
+  const riskTone = risk === null ? "" : risk < 40 ? "good" : risk < 65 ? "warn" : "bad";
+
+  const photoHtml = photos.length
+    ? `
+      <div class="car-img-wrap shared-photo-wrap" data-card-id="${escAttr(id)}" data-photos='${escAttr(JSON.stringify(photos))}' onclick="cyclePhoto(event, this, 1)">
+        <img class="car-img shared-photo-img" src="${escAttr(photos[0])}" alt="${escAttr(vehicleLabel(deal))}" onerror="this.parentElement.querySelector('.car-img-placeholder') && (this.style.display='none')" />
+        ${photos.length > 1 ? `
+          <button type="button" class="img-nav img-nav-prev" aria-label="Previous photo" onclick="cyclePhoto(event, this.parentElement, -1)">‹</button>
+          <button type="button" class="img-nav img-nav-next" aria-label="Next photo" onclick="cyclePhoto(event, this.parentElement, 1)">›</button>
+          <div class="img-dots">
+            ${photos.map((_, index) => `<span class="img-dot${index === 0 ? " active" : ""}"></span>`).join("")}
+          </div>
+          <span class="img-count">1 / ${photos.length}</span>
+        ` : ""}
+      </div>
+    `
+    : `
+      <div class="car-img-wrap shared-photo-wrap shared-photo-wrap-empty">
+        <div class="car-img-placeholder">No photo</div>
+      </div>
+    `;
+
+  return `
+    <article class="deal-card market-deal-card found-board-card ${tierClass}" onclick="openFoundDealModal(${Number.isFinite(dealIndex) ? dealIndex : -1})">
+      ${photoHtml}
+      <div class="market-deal-body">
+        <div class="market-deal-top">
+          <div>
+            <div class="found-card-kicker">
+              <span class="badge ${foundPlatformBadgeClass("cars")}">Cars</span>
+              <span>Found Listing</span>
+            </div>
+            <div class="process-name">${escHtml(vehicleLabel(deal))}</div>
+            <div class="process-desc">${escHtml(subline || deal.target?.label || deal.query || "Car sniper hit")}</div>
+          </div>
+          <div class="market-deal-badges">
+            ${tierPill}
+            <span class="badge badge-${escAttr(verdict)}">${escHtml(labelVerdict(verdict))}</span>
+          </div>
+        </div>
+
+        <div class="marketplace-metrics compact">
+          <div class="market-metric">
+            <span class="market-metric-label">Listed</span>
+            <strong>${formatMoney(deal.listing?.price)}</strong>
+          </div>
+          <div class="market-metric">
+            <span class="market-metric-label">Max Buy</span>
+            <strong>${formatMoney(deal.market?.maxBuy)}</strong>
+          </div>
+          <div class="market-metric">
+            <span class="market-metric-label">Margin</span>
+            <strong class="${marginTone}">${formatMoney(deal.market?.estimatedMargin)}</strong>
+          </div>
+          <div class="market-metric">
+            <span class="market-metric-label">Risk</span>
+            <strong class="${riskTone}">${risk !== null ? `${risk}/100` : "–"}</strong>
+          </div>
+        </div>
+
+        ${specsHtml ? `<div class="car-specs">${specsHtml}</div>` : ""}
+        ${issues.length ? `<div class="car-issues">${issues.map((issue) => `<span class="issue-tag">${escHtml(issue)}</span>`).join("")}</div>` : ""}
+        <div class="car-notes">${escHtml(notes)}</div>
+
+        <div class="car-footer">
+          <div class="car-target-label">
+            ${escHtml(deal.target?.label || deal.query || "Custom Target")}
+            ${deal.target?.group ? ` &middot; ${escHtml(deal.target.group)}` : ""}
+          </div>
+          <button class="car-open-btn" onclick="event.stopPropagation(); openInBrowser('${escAttr(openUrl)}')">Open ↗</button>
+        </div>
+      </div>
+    </article>
+  `;
 }
 
 function buildCarCard(deal, dealIndex) {
@@ -1260,6 +2048,7 @@ async function saveQuickSettings() {
   updateProxyWarning();
   renderWatchlist();
   setSettingsStatus("Quick settings saved. Restart the scan loop to apply.", "ok");
+  showToast("Quick settings saved.");
 }
 
 async function saveSettings() {
@@ -1302,6 +2091,7 @@ async function saveSettings() {
   refreshStatus();
   carSettingsDirty = false;
   setSettingsStatus("Saved. Restart the scan loop to apply immediately.", "ok");
+  showToast("Car settings saved.");
 }
 
 async function toggleTarget(id, enabled) {
@@ -1318,6 +2108,7 @@ async function toggleTarget(id, enabled) {
 
   await loadSettings();
   refreshStatus();
+  showToast(`Target ${enabled ? "enabled" : "disabled"}.`);
 }
 
 async function deleteTarget(id, label) {
@@ -1335,6 +2126,7 @@ async function deleteTarget(id, label) {
   await loadSettings();
   refreshStatus();
   setSettingsStatus(`Deleted ${label}.`, "ok");
+  showToast(`Deleted ${label}.`);
 }
 
 async function moveTargetToGroup(id, trimmed) {
@@ -1351,6 +2143,7 @@ async function moveTargetToGroup(id, trimmed) {
   await loadSettings();
   refreshStatus();
   setSettingsStatus(`Moved target to ${trimmed}.`, "ok");
+  showToast(`Moved target to ${trimmed}.`);
 }
 
 async function renameGroup(group) {
@@ -1374,6 +2167,7 @@ async function renameGroup(group) {
       await loadSettings();
       refreshStatus();
       setSettingsStatus(`Renamed ${group} to ${trimmed}.`, "ok");
+      showToast(`Renamed ${group} to ${trimmed}.`);
       return true;
     },
   });
@@ -1466,6 +2260,7 @@ async function resetMemory() {
     if (!resp.ok || !data.ok) throw new Error(data.error || "Reset failed");
     setSettingsStatus("Memory wiped. Restart the sniper to start fresh.", "ok");
     await Promise.all([loadFoundDeals(), loadRejectedDeals()]);
+    showToast("Memory wiped.");
   } catch (err) {
     setSettingsStatus(`Reset failed: ${err.message}`, "err");
   }
@@ -1800,6 +2595,7 @@ function openAddTarget() {
   document.getElementById("drawerStatus").textContent = "";
   document.getElementById("drawerStatus").className = "drawer-status";
   const manualField = document.getElementById("manualTargetJson");
+  manualField.dataset.mode = "car";
   if (!manualField.value.trim()) {
     manualField.value = JSON.stringify(MANUAL_TARGET_TEMPLATE, null, 2);
   }
@@ -1811,7 +2607,8 @@ function closeAddTarget() {
 }
 
 async function addTarget() {
-  const raw = document.getElementById("manualTargetJson").value.trim();
+  const textarea = document.getElementById("manualTargetJson");
+  const raw = textarea.value.trim();
   if (!raw) {
     setDrawerStatus("Target JSON is empty.", "err");
     return;
@@ -1830,12 +2627,15 @@ async function addTarget() {
     return;
   }
 
+  const mode = textarea.dataset.mode === "shared" ? "shared" : "car";
+  const endpoint = mode === "shared" ? "/api/shared/watchlist/add" : "/api/watchlist/add";
+
   const btn = document.getElementById("addTargetBtn");
   btn.disabled = true;
   btn.textContent = "Adding…";
 
   try {
-    const res  = await fetch("/api/watchlist/add", {
+    const res  = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ target }),
@@ -1847,12 +2647,20 @@ async function addTarget() {
       return;
     }
 
-    // Success — reload watchlist, close drawer
-    await loadWatchlist();
     closeAddTarget();
 
-    setActiveTopTab("cars");
-    setActiveCarView("watchlist");
+    if (mode === "shared") {
+      const platformFromTarget = Array.isArray(target.platforms) && target.platforms[0];
+      await loadSharedSettings();
+      renderAllMarketplaceTabs();
+      if (platformFromTarget && PLATFORM_META[platformFromTarget]) setActiveTopTab(platformFromTarget);
+      showToast("Shared target added.");
+    } else {
+      await loadWatchlist();
+      setActiveTopTab("cars");
+      setActiveCarView("watchlist");
+      showToast("Car target added.");
+    }
   } catch (e) {
     setDrawerStatus(`Error: ${e.message}`, "err");
   } finally {
