@@ -122,9 +122,9 @@ const DEFAULT_SHARED_CONFIG = {
   proxy: "",
   proxyPool: [],
   location: {
-    label: "",
     latitude: null,
     longitude: null,
+    confirmed: false,
   },
   notifications: {
     includePhotos: true,
@@ -513,19 +513,27 @@ function sharedConfigHasLocation(config = sharedConfig) {
   if (!loc) return false;
   const lat = Number(loc.latitude);
   const lng = Number(loc.longitude);
-  return Number.isFinite(lat) && Number.isFinite(lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  if (Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001) return false;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
+  return true;
+}
+
+function sharedConfigNeedsLocationReview(config = sharedConfig) {
+  if (!sharedConfigHasLocation(config)) return true;
+  return config?.location?.confirmed !== true;
 }
 
 function updateLocationBanner() {
   const banner = document.getElementById("locationBanner");
   if (!banner) return;
-  banner.hidden = sharedConfigHasLocation();
+  banner.hidden = !sharedConfigNeedsLocationReview();
 }
 
 function openLocationSettings() {
   setActiveTopTab("settings");
   window.setTimeout(() => {
-    const input = document.getElementById("sharedLocationLabel");
+    const input = document.getElementById("sharedLatitude");
     if (input) {
       input.scrollIntoView({ behavior: "smooth", block: "center" });
       input.focus();
@@ -1158,10 +1166,6 @@ function renderSharedSettings() {
             <textarea id="sharedProxyPool" class="quick-input quick-textarea" rows="4" placeholder="One proxy URL per line">${escHtml((config.proxyPool || []).join("\n"))}</textarea>
           </div>
           <div class="form-field">
-            <label for="sharedLocationLabel">Location Label</label>
-            <input id="sharedLocationLabel" class="quick-input" type="text" value="${escAttr(config.location?.label || "")}" placeholder="Madrid, Spain" />
-          </div>
-          <div class="form-field">
             <label for="sharedLatitude">Latitude</label>
             <input id="sharedLatitude" class="quick-input" type="number" step="0.0001" value="${escAttr(config.location?.latitude ?? "")}" />
           </div>
@@ -1251,6 +1255,17 @@ function buildBotFieldset(platform, botConfig) {
 function readSharedSettingsForm() {
   const base = normalizeSharedConfig(sharedConfig);
   const maxPhotos = clampNumber(document.getElementById("sharedMaxPhotos")?.value, 1, 5, base.notifications.maxPhotos);
+  const rawLat = (document.getElementById("sharedLatitude")?.value || "").trim();
+  const rawLng = (document.getElementById("sharedLongitude")?.value || "").trim();
+  const latNum = rawLat === "" ? null : Number(rawLat);
+  const lngNum = rawLng === "" ? null : Number(rawLng);
+  const latValid = latNum !== null && Number.isFinite(latNum);
+  const lngValid = lngNum !== null && Number.isFinite(lngNum);
+  const location = {
+    latitude: latValid ? latNum : null,
+    longitude: lngValid ? lngNum : null,
+  };
+  location.confirmed = latValid && lngValid;
 
   return {
     ...base,
@@ -1259,12 +1274,7 @@ function readSharedSettingsForm() {
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean),
-    location: {
-      ...base.location,
-      label: document.getElementById("sharedLocationLabel")?.value.trim() || base.location.label,
-      latitude: parseOptionalNumber(document.getElementById("sharedLatitude")?.value, base.location.latitude),
-      longitude: parseOptionalNumber(document.getElementById("sharedLongitude")?.value, base.location.longitude),
-    },
+    location,
     notifications: {
       ...base.notifications,
       includePhotos: document.getElementById("sharedIncludePhotos")?.checked !== false,
@@ -2102,6 +2112,8 @@ async function saveQuickSettings() {
   };
   if (!isNaN(latitude)) nextConfig.location.latitude = latitude;
   if (!isNaN(longitude)) nextConfig.location.longitude = longitude;
+  nextConfig.location.confirmed = Number.isFinite(Number(nextConfig.location.latitude))
+    && Number.isFinite(Number(nextConfig.location.longitude));
 
   if (proxy) nextConfig.proxy = proxy;
   else delete nextConfig.proxy;
@@ -2601,7 +2613,10 @@ function cssEscape(value) {
 }
 
 function parseOptionalNumber(value, fallback = null) {
-  const parsed = Number(value);
+  if (value === null || value === undefined) return fallback;
+  const str = String(value).trim();
+  if (str === "") return fallback;
+  const parsed = Number(str);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 

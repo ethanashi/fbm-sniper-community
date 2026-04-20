@@ -25,29 +25,39 @@ Download the latest release from GitHub:
 
 | Platform | File | Version |
 | --- | --- | --- |
-| Apple Silicon Mac | `FBM.Sniper.Community-2.0.1-arm64.dmg` | 2.0.1 |
-| Intel Mac | `FBM.Sniper.Community-2.0.1.dmg` | 2.0.1 |
-| Windows x64 | `FBM Sniper Community Setup 2.0.1.exe` | 2.0.1 |
+| Apple Silicon Mac | `FBM.Sniper.Community-2.0.2-arm64.dmg` | 2.0.2 |
+| Intel Mac | `FBM.Sniper.Community-2.0.2.dmg` | 2.0.2 |
+| Windows x64 | `FBM.Sniper.Community.Setup.2.0.2.exe` | 2.0.2 |
 
 ### macOS Installation
 
-Open the `.dmg`, drag the app into Applications, then open it.
+On macOS, open the `.dmg` and **drag the app into Applications first**. Do not launch it from inside the DMG — macOS will apply stricter quarantine rules to apps running from a mounted disk image and you will hit the "could not verify" block on every launch.
 
-If macOS says the app is damaged, the app is being blocked because it is unsigned. Run this once:
+Once the app is in `/Applications`, Gatekeeper may still warn that "macOS cannot verify that this app is free of malware" because the app is unsigned. You have two ways to get past it:
+
+**Option A — clear the quarantine attribute (recommended):**
 
 ```bash
 xattr -cr "/Applications/FBM Sniper Community.app"
 ```
 
+**Option B — approve it in System Settings (macOS Sequoia 15+):**
+
+1. Double-click the app and let the warning appear.
+2. Click **Done**.
+3. Open **System Settings → Privacy & Security**.
+4. Scroll to the Security section. You will see a line saying *"FBM Sniper Community was blocked..."* with an **Open Anyway** button.
+5. Click **Open Anyway**, confirm with your password, and the app will launch. macOS will remember the approval for future launches.
+
 ### Windows Installation
 
-1. Download `FBM Sniper Community Setup 2.0.1.exe`
+1. Download `FBM.Sniper.Community.Setup.2.0.2.exe`
 2. Run the installer
 3. SmartScreen may warn because the app is unsigned. Click **More info** and then **Run anyway**
 4. Follow the installation wizard
 5. The app will open after installation
 
-On first launch, the app downloads Puppeteer Chrome into app data. This is a one-time setup of about 150 MB. After that, the app opens normally.
+On first launch, the app opens immediately and downloads Puppeteer Chrome into app data in the background. This is a one-time setup of about 150 MB. The dashboard is usable right away; the Chrome-powered bots (Cars, Facebook) will wait for the download before they can start.
 
 ### System Requirements
 
@@ -120,13 +130,16 @@ The Vinted tab controls the shared Vinted electronics sniper.
 You can:
 
 - Start or stop the Vinted bot.
+- **Pick your Vinted country** from the dropdown. Vinted runs a separate site per country (`www.vinted.es`, `.fr`, `.de`, `.co.uk`, `.com`, etc.) and the bot will refuse to start until you choose one.
 - Set the Vinted poll interval.
 - Paste an optional Vinted cookie.
 - Paste the matching User-Agent for that cookie.
 - Review Vinted hits with fee-aware pricing.
 - Watch Vinted logs in the same tab.
 
-The cookie should include `access_token_web=...`. If you leave it blank, the bot still tries its automatic cookie flow.
+Supported countries: United States, Spain, France, Germany, United Kingdom, Italy, Netherlands, Belgium, Poland, Czechia, Slovakia, Austria, Portugal, Luxembourg, Lithuania, Finland, Sweden, Denmark, Hungary, Croatia, Greece, Romania, and Ireland.
+
+The cookie should include `access_token_web=...` **from the same country domain you selected**. If you leave it blank, the bot still tries its automatic cookie flow.
 
 ### Found Listings
 
@@ -171,12 +184,15 @@ Use **+ Add Target** to paste a new target JSON object.
 
 The top-level Settings tab controls the shared marketplace workspace for Facebook, Wallapop, and Vinted.
 
+**Location is now mandatory and blank by default.** The Settings tab no longer has a city label field — only **Latitude** and **Longitude**. None of the snipers (Facebook, Wallapop, Vinted) will start until you fill in both numbers and click **Save Shared Settings**. An amber banner stays pinned to the top of the dashboard with an **Open Settings** shortcut until a valid location is saved.
+
+The latitude/longitude you enter is what actually controls which city's listings the bots search. Typing "Phoenix, AZ" anywhere will do nothing — you must paste Phoenix's coordinates (`33.4484, -112.0740`) for the bots to search Phoenix. Grab coords for any city by googling "<city> latitude longitude" or by right-clicking the map pin in Google Maps (the first line of the popup is the `lat, lng` pair).
+
 It includes:
 
 - Proxy URL
 - Proxy Pool
-- Location label
-- Latitude and longitude
+- Latitude and longitude (required — coords only, no label)
 - Include photos in Discord alerts
 - Max photos per alert
 - Browser opening behavior
@@ -185,6 +201,7 @@ It includes:
 - Discord webhook for Buy Now deals
 - Discord webhook for Maybe deals
 - Per-bot poll intervals
+- **Vinted country** (required before the Vinted bot will start)
 - Vinted cookie and User-Agent
 - Raw shared watchlist JSON
 
@@ -203,13 +220,16 @@ Use it when a bot is not starting, gets blocked, or returns bad responses.
 
 ## Starting A Bot
 
-1. Open the tab for the bot you want to run.
-2. Check the poll interval.
-3. Click **Start**.
-4. Watch the Live Deals panel and the log panel.
-5. Click **Stop** when you want the current bot to stop after the current step finishes.
+1. Open the top-level **Settings** tab and confirm your latitude and longitude are saved. If you plan to run Vinted, pick your country as well. None of the bots will start without these.
+2. Open the tab for the bot you want to run.
+3. Check the poll interval.
+4. Click **Start**.
+5. Watch the Live Deals panel and the log panel.
+6. Click **Stop** when you want the current bot to stop after the current step finishes.
 
 Each bot runs separately. You can run only the platforms you care about.
+
+If a bot refuses to start, check its Log tab. A missing-location or missing-Vinted-country error prints a clear red message telling you which field to fill in.
 
 ## Shared Target JSON
 
@@ -341,11 +361,13 @@ In Settings, you can set:
 
 You can also choose whether alerts include photos and how many photos to attach.
 
-## Vinted Cookie Setup
+## Vinted Country And Cookie Setup
 
-If Vinted starts returning auth errors, paste a fresh cookie:
+Before Vinted can run, pick your country from the **Vinted Country** dropdown in Settings (or in the inline strip on the Vinted tab). The bot uses the matching domain, locale, and referer for every request.
 
-1. Log into `vinted.es` in your browser.
+A cookie is optional — the bot tries an automatic cookie flow first. Paste one only if Vinted starts returning auth errors or you want a stronger bypass. The cookie **must come from the same country site you selected in the dropdown**:
+
+1. Log into your country's Vinted site (for example `www.vinted.fr` if you picked France).
 2. Open DevTools.
 3. Go to Application or Storage cookies.
 4. Find the cookie string that includes `access_token_web=...`.
@@ -355,7 +377,7 @@ If Vinted starts returning auth errors, paste a fresh cookie:
 8. Paste it into the Vinted User-Agent field.
 9. Click **Apply** or **Save Shared Settings**.
 
-The cookie and User-Agent should come from the same browser session.
+The cookie and User-Agent should come from the same browser session on the same country domain. Mixing a `.fr` cookie with a `.es` country selection will fail.
 
 ## Proxies
 
@@ -400,7 +422,10 @@ Use it when you want the car scanner to re-process listings it has already seen.
 | Vinted returns 403/429 | Refresh the Vinted cookie and User-Agent, then slow the poll interval. |
 | Discord does not post | Verify webhook URLs, make sure the grade matches the route, and confirm Discord alerts are not blocked by network settings. |
 | Save does nothing | Watch for the green side notification. If it does not appear, check Logs or reload Settings. |
-| App will not open on macOS | Run the `xattr -cr` command from the install section. |
+| Amber location banner will not clear | You have not saved a valid latitude and longitude yet. Fill both fields in Settings and click **Save Shared Settings**. |
+| Vinted refuses to start | Confirm you picked a country in **Settings → Vinted Country**. The Log tab will say `No Vinted country selected` until you do. |
+| App will not open on macOS ("could not verify") | Drag the app into `/Applications` first, then run `xattr -cr "/Applications/FBM Sniper Community.app"`. If it still blocks, approve it in **System Settings → Privacy & Security → Open Anyway**. |
+| App will not open on Windows (double-click does nothing) | Open `%APPDATA%\FBM Sniper Community\startup-error.log` and share the stack trace in `#questions`. The log is written whenever the app fails to boot. |
 
 ## Developer Commands
 
@@ -449,7 +474,7 @@ In the packaged app, the same files are stored in your operating system app-data
 
 ## Best Workflow
 
-1. Open Settings and set location, proxies, Discord, and poll intervals.
+1. Open Settings and paste your latitude/longitude (required), pick your Vinted country (required if you want Vinted), then set proxies, Discord webhooks, and poll intervals.
 2. Open Watchlist and confirm each shared target is enabled on the right platforms.
 3. Start one bot first, not all four.
 4. Watch logs for a full cycle.
