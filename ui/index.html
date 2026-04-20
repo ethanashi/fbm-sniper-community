@@ -23,6 +23,12 @@
     <div class="ws-indicator" id="wsIndicator" title="Live connection">●</div>
   </header>
 
+  <div id="locationBanner" class="location-banner" hidden>
+    <strong>📍 No location set.</strong>
+    <span>The snipers won't run until you enter your city and coordinates.</span>
+    <button class="btn btn-primary btn-sm" onclick="openLocationSettings()">Open Settings</button>
+  </div>
+
   <main>
     <section class="tab active" id="tab-cars">
       <div id="carsPanel" class="cars-shell">

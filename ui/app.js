@@ -122,9 +122,9 @@ const DEFAULT_SHARED_CONFIG = {
   proxy: "",
   proxyPool: [],
   location: {
-    label: "Madrid, Spain",
-    latitude: 40.4032,
-    longitude: -3.7037,
+    label: "",
+    latitude: null,
+    longitude: null,
   },
   notifications: {
     includePhotos: true,
@@ -140,13 +140,49 @@ const DEFAULT_SHARED_CONFIG = {
   bots: {
     facebook: { pollIntervalSec: 90 },
     wallapop: { pollIntervalSec: 60 },
-    vinted: { pollIntervalSec: 45, cookie: "", userAgent: "" },
+    vinted: { pollIntervalSec: 45, cookie: "", userAgent: "", domain: "" },
   },
 };
 
 /* ── Carousel state ─────────────────────────────────────────────────────────── */
 // cardId → current photo index
 const photoIndexes = {};
+
+const VINTED_DOMAINS = [
+  { domain: "www.vinted.com",   country: "United States" },
+  { domain: "www.vinted.es",    country: "Spain" },
+  { domain: "www.vinted.fr",    country: "France" },
+  { domain: "www.vinted.de",    country: "Germany" },
+  { domain: "www.vinted.co.uk", country: "United Kingdom" },
+  { domain: "www.vinted.it",    country: "Italy" },
+  { domain: "www.vinted.nl",    country: "Netherlands" },
+  { domain: "www.vinted.be",    country: "Belgium" },
+  { domain: "www.vinted.pl",    country: "Poland" },
+  { domain: "www.vinted.cz",    country: "Czechia" },
+  { domain: "www.vinted.sk",    country: "Slovakia" },
+  { domain: "www.vinted.at",    country: "Austria" },
+  { domain: "www.vinted.pt",    country: "Portugal" },
+  { domain: "www.vinted.lu",    country: "Luxembourg" },
+  { domain: "www.vinted.lt",    country: "Lithuania" },
+  { domain: "www.vinted.fi",    country: "Finland" },
+  { domain: "www.vinted.se",    country: "Sweden" },
+  { domain: "www.vinted.dk",    country: "Denmark" },
+  { domain: "www.vinted.hu",    country: "Hungary" },
+  { domain: "www.vinted.hr",    country: "Croatia" },
+  { domain: "www.vinted.gr",    country: "Greece" },
+  { domain: "www.vinted.ro",    country: "Romania" },
+  { domain: "www.vinted.ie",    country: "Ireland" },
+];
+
+function buildVintedDomainOptions(selected) {
+  const current = String(selected || "").trim().toLowerCase();
+  const placeholder = `<option value="" ${current ? "" : "selected"}>— Select country —</option>`;
+  const rows = VINTED_DOMAINS.map((d) => {
+    const sel = d.domain === current ? "selected" : "";
+    return `<option value="${escAttr(d.domain)}" ${sel}>${escHtml(d.country)} (${escHtml(d.domain)})</option>`;
+  }).join("");
+  return placeholder + rows;
+}
 
 /* ── Tab navigation ─────────────────────────────────────────────────────────── */
 document.querySelectorAll(".nav-btn").forEach((btn) => {
@@ -472,12 +508,38 @@ function normalizeSharedConfig(config = {}) {
   };
 }
 
+function sharedConfigHasLocation(config = sharedConfig) {
+  const loc = config && config.location;
+  if (!loc) return false;
+  const lat = Number(loc.latitude);
+  const lng = Number(loc.longitude);
+  return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+function updateLocationBanner() {
+  const banner = document.getElementById("locationBanner");
+  if (!banner) return;
+  banner.hidden = sharedConfigHasLocation();
+}
+
+function openLocationSettings() {
+  setActiveTopTab("settings");
+  window.setTimeout(() => {
+    const input = document.getElementById("sharedLocationLabel");
+    if (input) {
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+      input.focus();
+    }
+  }, 120);
+}
+
 async function loadSharedSettings() {
   try {
     const data = await fetchJson("/api/shared/settings");
     sharedConfig = normalizeSharedConfig(data.config || {});
     sharedWatchlist = Array.isArray(data.watchlist) ? data.watchlist : [];
     sharedGroups = Array.isArray(data.groups) ? data.groups : buildSharedGroups(sharedWatchlist);
+    updateLocationBanner();
     renderAllMarketplaceTabs();
     if (sharedSettingsDirty) {
       if (currentTopTab === "settings") {
@@ -785,7 +847,14 @@ function renderMarketplaceTab(platform) {
 function buildVintedExtraSettings(botConfig) {
   const cookie = botConfig.cookie || "";
   const ua = botConfig.userAgent || "";
+  const domain = botConfig.domain || "";
   return `
+    <div class="sniper-setting-item">
+      <label for="sniper-vinted-domain">Country</label>
+      <select id="sniper-vinted-domain">
+        ${buildVintedDomainOptions(domain)}
+      </select>
+    </div>
     <div class="sniper-setting-item sniper-setting-cookie">
       <label for="sniper-vinted-cookie">Cookie</label>
       <input type="password" id="sniper-vinted-cookie" placeholder="Paste access_token_web=... cookie" autocomplete="off" value="${escAttr(cookie)}" />
@@ -809,6 +878,7 @@ async function applyBotSettings(platform) {
   if (platform === "vinted") {
     nextBot.cookie = document.getElementById("sniper-vinted-cookie")?.value.trim() || "";
     nextBot.userAgent = document.getElementById("sniper-vinted-ua")?.value.trim() || "";
+    nextBot.domain = document.getElementById("sniper-vinted-domain")?.value.trim() || "";
   }
   const nextConfig = normalizeSharedConfig({
     ...sharedConfig,
@@ -1159,9 +1229,15 @@ function buildBotFieldset(platform, botConfig) {
         <input id="bot-${platform}-poll" class="quick-input" type="number" min="5" step="5" value="${escAttr(botConfig.pollIntervalSec ?? "")}" />
       </div>
       ${platform === "vinted" ? `
+        <div class="form-field">
+          <label for="bot-vinted-domain">Vinted Country</label>
+          <select id="bot-vinted-domain" class="quick-input">
+            ${buildVintedDomainOptions(botConfig.domain)}
+          </select>
+        </div>
         <div class="form-field form-field-wide">
           <label for="bot-vinted-cookie">Vinted Cookie</label>
-          <textarea id="bot-vinted-cookie" class="quick-input quick-textarea" rows="4" placeholder="Optional manual cookie override (must contain access_token_web=...)">${escHtml(botConfig.cookie || "")}</textarea>
+          <textarea id="bot-vinted-cookie" class="quick-input quick-textarea" rows="4" placeholder="Optional manual cookie override (must contain access_token_web=...). Must match the country you selected above.">${escHtml(botConfig.cookie || "")}</textarea>
         </div>
         <div class="form-field form-field-wide">
           <label for="bot-vinted-ua">Vinted User-Agent</label>
@@ -1215,6 +1291,7 @@ function readSharedSettingsForm() {
         pollIntervalSec: clampNumber(document.getElementById("bot-vinted-poll")?.value, 5, 3600, base.bots.vinted.pollIntervalSec),
         cookie: document.getElementById("bot-vinted-cookie")?.value.trim() || "",
         userAgent: document.getElementById("bot-vinted-ua")?.value.trim() || "",
+        domain: document.getElementById("bot-vinted-domain")?.value.trim() || "",
       },
     },
   };
@@ -1250,6 +1327,7 @@ async function saveSharedSettings() {
   sharedWatchlist = nextWatchlist;
   sharedGroups = buildSharedGroups(sharedWatchlist);
   sharedSettingsDirty = false;
+  updateLocationBanner();
   renderSharedSettings();
   renderAllMarketplaceTabs();
   setSharedSettingsStatus("Shared marketplace settings saved.", "ok");

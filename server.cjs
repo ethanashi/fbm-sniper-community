@@ -130,6 +130,7 @@ function startProcess(name, extraArgs = []) {
       ...(IS_ELECTRON ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
       ...proxyEnv,
     },
+    windowsHide: true,
   });
 
   def.proc = proc;

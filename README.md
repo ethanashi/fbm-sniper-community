@@ -21,6 +21,8 @@ If you want setup help, examples, and a place to share flips, jump into the comm
 - New shared multi-platform watchlist for Facebook, Wallapop, and Vinted
 - Dedicated tabs for `Facebook`, `Wallapop`, and `Vinted`
 - Shared settings for Discord webhooks, bot toggles, poll intervals, and Vinted cookie input
+- **Worldwide Vinted support** — pick your country (US, UK, FR, DE, IT, NL, PL, PT, etc.) and the bot hits the right domain
+- **Location is now user-configurable** — no more Spain-only defaults; set your own city + coordinates in Settings
 - Discord alerts routed to `All`, `Buy Now`, and `Maybe` webhooks
 - Discord alerts are optional; the app still runs normally without any webhook configured
 
@@ -39,9 +41,9 @@ Grab the latest release from the [Releases page](https://github.com/ethanashi/fb
 
 | Platform | File |
 | --- | --- |
-| macOS (Apple Silicon) | `FBM.Sniper.Community-2.0.0-arm64.dmg` |
-| macOS (Intel) | `FBM.Sniper.Community-2.0.0.dmg` |
-| Windows (x64) | `FBM.Sniper.Community.Setup.2.0.0.exe` |
+| macOS (Apple Silicon) | `FBM.Sniper.Community-2.0.1-arm64.dmg` |
+| macOS (Intel) | `FBM.Sniper.Community-2.0.1.dmg` |
+| Windows (x64) | `FBM.Sniper.Community.Setup.2.0.1.exe` |
 
 ### macOS "app is damaged" warning
 
@@ -60,10 +62,12 @@ The Windows build is unsigned, so SmartScreen may show a warning. Click **More i
 ## First launch
 
 1. Open the app.
-2. Log into Facebook in the browser window if you plan to use the `Cars` or `Facebook` bot.
-3. Open the `Settings` tab and review the shared watchlist, bot toggles, and polling intervals.
-4. Add Discord webhook URLs only if you want alerts. They are optional.
-5. Start the bot you want from its tab.
+2. **Set your location** in the `Settings` tab (city label + latitude/longitude). None of the snipers will run until you fill this in — the banner at the top of the app reminds you.
+3. If you plan to use the `Vinted` bot, pick your country from the **Vinted Country** dropdown in Settings (or in the Vinted tab's inline settings strip).
+4. Log into Facebook in the browser window if you plan to use the `Cars` or `Facebook` bot.
+5. Review the shared watchlist, bot toggles, and polling intervals.
+6. Add Discord webhook URLs only if you want alerts. They are optional.
+7. Start the bot you want from its tab.
 
 ## Discord webhooks
 
@@ -75,15 +79,17 @@ Discord notifications are controlled from the `Settings` tab:
 
 Leaving all three blank disables Discord delivery without affecting the snipers.
 
-## Vinted cookie setup
+## Vinted country + cookie setup
 
-The Vinted bot can use a manual cookie from either the `Settings` tab or the `VINTED_COOKIE` environment variable. The manual value should include `access_token_web=...`.
+Vinted runs a separate site per country (`www.vinted.es`, `.fr`, `.de`, `.co.uk`, `.com`, etc.). The Vinted bot won't start until you pick your country from the dropdown in `Settings → Vinted`. Supported countries: United States, Spain, France, Germany, United Kingdom, Italy, Netherlands, Belgium, Poland, Czechia, Slovakia, Austria, Portugal, Luxembourg, Lithuania, Finland, Sweden, Denmark, Hungary, Croatia, Greece, Romania, Ireland.
+
+A manual cookie is optional — the bot auto-fetches one from whatever country you pick. If you want to supply your own (stronger bypass), the value must include `access_token_web=...` **from the same Vinted country domain you selected**.
 
 Quick way to get it:
 
-1. Log in to [vinted.es](https://www.vinted.es).
+1. Log in to your country's Vinted site (e.g. `www.vinted.fr`).
 2. Open your browser devtools.
-3. Find the request cookies for `vinted.es`, or inspect the site cookies under Application/Storage.
+3. Find the request cookies for that domain, or inspect the site cookies under Application/Storage.
 4. Copy the cookie string that contains `access_token_web=...`.
 5. Paste it into the Vinted cookie field in `Settings`, or export it as `VINTED_COOKIE`.
 
