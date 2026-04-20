@@ -1174,6 +1174,22 @@ h2 {
   font-weight: 500;
 }
 
+.location-banner {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  padding: .6rem 1.25rem;
+  background: linear-gradient(90deg, rgba(245, 158, 11, .18), rgba(245, 158, 11, .06));
+  border-bottom: 1px solid rgba(245, 158, 11, .45);
+  color: #fbbf24;
+  font-size: .85rem;
+  font-weight: 500;
+}
+.location-banner strong { color: #fde68a; font-weight: 600; }
+.location-banner span { flex: 1; color: #fcd34d; }
+.location-banner .btn { flex: none; }
+.location-banner[hidden] { display: none; }
+
 .quick-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
