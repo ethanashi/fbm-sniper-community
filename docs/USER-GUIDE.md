@@ -23,13 +23,15 @@ Download the latest release from GitHub:
 
 **[github.com/ethanashi/fbm-sniper-community/releases](https://github.com/ethanashi/fbm-sniper-community/releases)**
 
-| Platform | File |
-| --- | --- |
-| Apple Silicon Mac | `FBM.Sniper.Community-2.0.1-arm64.dmg` |
-| Intel Mac | `FBM.Sniper.Community-2.0.1.dmg` |
-| Windows x64 | `FBM.Sniper.Community.Setup.2.0.1.exe` |
+| Platform | File | Version |
+| --- | --- | --- |
+| Apple Silicon Mac | `FBM.Sniper.Community-2.0.1-arm64.dmg` | 2.0.1 |
+| Intel Mac | `FBM.Sniper.Community-2.0.1.dmg` | 2.0.1 |
+| Windows x64 | `FBM Sniper Community Setup 2.0.1.exe` | 2.0.1 |
 
-On macOS, open the `.dmg`, drag the app into Applications, then open it.
+### macOS Installation
+
+Open the `.dmg`, drag the app into Applications, then open it.
 
 If macOS says the app is damaged, the app is being blocked because it is unsigned. Run this once:
 
@@ -37,9 +39,22 @@ If macOS says the app is damaged, the app is being blocked because it is unsigne
 xattr -cr "/Applications/FBM Sniper Community.app"
 ```
 
-On Windows, SmartScreen may warn because the app is unsigned. Click **More info** and then **Run anyway**.
+### Windows Installation
+
+1. Download `FBM Sniper Community Setup 2.0.1.exe`
+2. Run the installer
+3. SmartScreen may warn because the app is unsigned. Click **More info** and then **Run anyway**
+4. Follow the installation wizard
+5. The app will open after installation
 
 On first launch, the app downloads Puppeteer Chrome into app data. This is a one-time setup of about 150 MB. After that, the app opens normally.
+
+### System Requirements
+
+- **macOS**: 10.13 or later
+- **Windows**: Windows 10 or later, x64 architecture
+- **Disk Space**: ~200 MB
+- **RAM**: 2 GB minimum
 
 ## What Runs Locally
 
