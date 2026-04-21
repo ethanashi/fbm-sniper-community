@@ -192,6 +192,7 @@ It includes:
 
 - Proxy URL
 - Proxy Pool
+- Recommended proxy provider: [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7)
 - Latitude and longitude (required — coords only, no label)
 - Include photos in Discord alerts
 - Max photos per alert
@@ -383,6 +384,10 @@ The cookie and User-Agent should come from the same browser session on the same 
 
 Marketplace sites rate-limit aggressively. If you see repeated `429`, `403`, Facebook `1675004`, or straight request failures, add proxies.
 
+Recommended provider: [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7). I really recommend this one because they are extremely good, and in my testing I do not get rate limited nearly as much when using them.
+
+This is an affiliate link, but it helps keep this project free, which was the original plan for the community version.
+
 Use either:
 
 - **Proxy URL** for one proxy.
@@ -417,9 +422,9 @@ Use it when you want the car scanner to re-process listings it has already seen.
 | --- | --- |
 | No shared deals appear | Open the platform tab, confirm the bot is running, confirm the target has that platform checked, and check logs. |
 | Found Listings is empty | Make sure at least one platform chip is enabled and filters are not hiding everything. |
-| Facebook fails or rate-limits | Log into Facebook again if prompted, then add a proxy if errors continue. |
+| Facebook fails or rate-limits | Log into Facebook again if prompted, then add a proxy if errors continue. I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) for longer runs. |
 | Wallapop returns repeated errors | Check target price/radius settings, then add a proxy or increase the poll interval. |
-| Vinted returns 403/429 | Refresh the Vinted cookie and User-Agent, then slow the poll interval. |
+| Vinted returns 403/429 | Refresh the Vinted cookie and User-Agent, slow the poll interval, and consider [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) if you keep getting rate-limited. |
 | Discord does not post | Verify webhook URLs, make sure the grade matches the route, and confirm Discord alerts are not blocked by network settings. |
 | Save does nothing | Watch for the green side notification. If it does not appear, check Logs or reload Settings. |
 | Amber location banner will not clear | You have not saved a valid latitude and longitude yet. Fill both fields in Settings and click **Save Shared Settings**. |
@@ -474,7 +479,7 @@ In the packaged app, the same files are stored in your operating system app-data
 
 ## Best Workflow
 
-1. Open Settings and paste your latitude/longitude (required), pick your Vinted country (required if you want Vinted), then set proxies, Discord webhooks, and poll intervals.
+1. Open Settings and paste your latitude/longitude (required), pick your Vinted country (required if you want Vinted), then set proxies, Discord webhooks, and poll intervals. If you need proxies, I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) because they have been the most reliable in my testing.
 2. Open Watchlist and confirm each shared target is enabled on the right platforms.
 3. Start one bot first, not all four.
 4. Watch logs for a full cycle.
