@@ -1,9 +1,9 @@
-const express = require("express");
 const { createServer } = require("http");
 const { WebSocketServer } = require("ws");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const url = require("url");
 
 const MAX_ACTIVE_TARGETS = 10;
 const LIMIT_NOTE = "Max active targets reached (10). Disable a target to enable another.";
@@ -21,17 +21,12 @@ const SHARED_FOUND_FILES = {
   facebook: path.join(DATA_DIR, "facebook", "found.ndjson"),
   wallapop: path.join(DATA_DIR, "wallapop", "found.ndjson"),
   vinted: path.join(DATA_DIR, "vinted", "found.ndjson"),
+  mercadolibre: path.join(DATA_DIR, "mercadolibre", "found.ndjson"),
+  amazon: path.join(DATA_DIR, "amazon", "found.ndjson"),
 };
 const REJECTED_HEADERS = "timestamp,title,query,target_id,target_label,target_group,listing_price,reason,url,make,model,year,title_status\n";
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-
-const app = express();
-const server = createServer(app);
-const wss = new WebSocketServer({ server });
-
-app.use(express.json());
-app.use(express.static(UI_DIR));
 
 // When running inside Electron (packaged or dev), use Electron's bundled Node
 // so end users don't need Node.js installed on their machine.
@@ -66,6 +61,27 @@ const PROCESSES = {
     proc: null,
     stopping: false,
   },
+  "mercadolibre-sniper": {
+    label: "MercadoLibre Sniper",
+    cmd: process.execPath,
+    args: ["lib/mercadolibre-sniper.js"],
+    proc: null,
+    stopping: false,
+  },
+  "amazon-sniper": {
+    label: "Amazon Sniper",
+    cmd: process.execPath,
+    args: ["lib/amazon-sniper.js"],
+    proc: null,
+    stopping: false,
+  },
+  "arbitrage-engine": {
+    label: "Crypto Arbitrage",
+    cmd: process.execPath,
+    args: ["crypto_arbitrage/engine.js", "--run"],
+    proc: null,
+    stopping: false,
+  },
 };
 
 let workspace = null;
@@ -75,17 +91,13 @@ async function initWorkspace() {
   workspace.ensureWorkspaceFiles();
   return workspace;
 }
-function requireWorkspace(res) {
-  if (!workspace) {
-    res.status(503).json({ error: "workspace not initialized" });
-    return null;
-  }
-  return workspace;
-}
 
 const logs = {};
 const stopTimers = {};
 for (const key of Object.keys(PROCESSES)) logs[key] = [];
+
+const server = createServer(handleRequest);
+const wss = new WebSocketServer({ server });
 
 function broadcast(data) {
   const msg = JSON.stringify(data);
@@ -125,8 +137,6 @@ function startProcess(name, extraArgs = []) {
     cwd: ROOT,
     env: {
       ...process.env,
-      // ELECTRON_RUN_AS_NODE makes the Electron binary behave as plain Node.js,
-      // so the scanner runs without requiring system Node to be installed.
       ...(IS_ELECTRON ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
       ...proxyEnv,
     },
@@ -380,6 +390,7 @@ function sanitizeRejectedDeal(row) {
 
 function readWatchlist() {
   try {
+    if (!fs.existsSync(WATCHLIST_FILE)) return [];
     const parsed = JSON.parse(fs.readFileSync(WATCHLIST_FILE, "utf8"));
     return Array.isArray(parsed) ? parsed.map(sanitizeTarget).filter(Boolean) : [];
   } catch {
@@ -393,6 +404,7 @@ function countEnabled(list) {
 
 function readConfig() {
   try {
+    if (!fs.existsSync(CONFIG_FILE)) return {};
     const parsed = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     return {
@@ -457,8 +469,8 @@ function buildLimits(watchlist) {
 
 let watchersStarted = false;
 const watchedFiles = new Set();
-let listenErrorHandler = null;
 function watchDataFile(file, eventType, extra = {}) {
+  if (!fs.existsSync(file)) return;
   watchedFiles.add(file);
   fs.watchFile(file, { interval: 1500 }, (curr, prev) => {
     if (curr.mtimeMs === 0 || curr.mtimeMs === prev.mtimeMs) return;
@@ -473,378 +485,384 @@ function startWatchers() {
   watchDataFile(FOUND_FILE, "car-found-updated");
   watchDataFile(REJECTED_FILE, "car-rejected-updated");
   watchDataFile(WATCHLIST_FILE, "car-watchlist-updated");
-  watchDataFile(SHARED_FOUND_FILES.facebook, "shared-found-updated", { platform: "facebook" });
-  watchDataFile(SHARED_FOUND_FILES.wallapop, "shared-found-updated", { platform: "wallapop" });
-  watchDataFile(SHARED_FOUND_FILES.vinted, "shared-found-updated", { platform: "vinted" });
+  Object.entries(SHARED_FOUND_FILES).forEach(([platform, file]) => {
+    watchDataFile(file, "shared-found-updated", { platform });
+  });
 }
 
-app.get("/api/status", (_req, res) => {
-  const foundDeals = readFoundDeals();
-  const watchlist = readWatchlist();
-  const processes = {};
-  for (const [key, value] of Object.entries(PROCESSES)) {
-    processes[key] = { label: value.label, running: !!value.proc, stopping: !!value.stopping };
-  }
-  res.json({
-    edition: "community",
-    processes,
-    stats: buildStats(foundDeals),
-    watchlistCount: watchlist.length,
-    targetGroups: buildGroups(watchlist),
-    limits: buildLimits(watchlist),
-  });
-});
+const MIME_TYPES = {
+  ".html": "text/html",
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
+};
 
-app.get("/api/watchlist", (_req, res) => {
-  res.json(readWatchlist());
-});
-
-app.post("/api/watchlist/toggle", (req, res) => {
-  const { id, enabled } = req.body || {};
-  if (!id || typeof id !== "string") {
-    return res.status(400).json({ error: "target id is required" });
-  }
-
-  const list = readWatchlist();
-  const index = list.findIndex((target) => target.id === id);
-  if (index === -1) {
-    return res.status(404).json({ error: "target not found" });
-  }
-
-  const willEnable = enabled !== false;
-  if (willEnable && list[index].enabled === false) {
-    const enabledCount = countEnabled(list);
-    if (enabledCount >= MAX_ACTIVE_TARGETS) {
-      return res.status(403).json({ error: LIMIT_NOTE, code: "target_limit" });
-    }
-  }
-
-  list[index] = {
-    ...list[index],
-    enabled: willEnable,
-  };
-  const updated = persistWatchlist(list);
-  res.json({ ok: true, target: updated.find((target) => target.id === id) || null });
-});
-
-app.post("/api/watchlist/delete", (req, res) => {
-  const { id } = req.body || {};
-  if (!id || typeof id !== "string") {
-    return res.status(400).json({ error: "target id is required" });
-  }
-
-  const list = readWatchlist();
-  const filtered = list.filter((target) => target.id !== id);
-  if (filtered.length === list.length) {
-    return res.status(404).json({ error: "target not found" });
-  }
-
-  persistWatchlist(filtered);
-  res.json({ ok: true });
-});
-
-app.post("/api/watchlist/move", (req, res) => {
-  const { id, group } = req.body || {};
-  if (!id || typeof id !== "string") {
-    return res.status(400).json({ error: "target id is required" });
-  }
-  if (!group || typeof group !== "string" || !group.trim()) {
-    return res.status(400).json({ error: "group name is required" });
-  }
-
-  const list = readWatchlist();
-  const index = list.findIndex((target) => target.id === id);
-  if (index === -1) {
-    return res.status(404).json({ error: "target not found" });
-  }
-
-  list[index] = {
-    ...list[index],
-    group: group.trim(),
-  };
-  const updated = persistWatchlist(list);
-  res.json({ ok: true, target: updated.find((target) => target.id === id) || null });
-});
-
-app.post("/api/watchlist/rename-group", (req, res) => {
-  const { from, to } = req.body || {};
-  if (!from || typeof from !== "string" || !from.trim()) {
-    return res.status(400).json({ error: "current group name is required" });
-  }
-  if (!to || typeof to !== "string" || !to.trim()) {
-    return res.status(400).json({ error: "new group name is required" });
-  }
-
-  const fromName = from.trim();
-  const toName = to.trim();
-  const list = readWatchlist();
-  let changed = 0;
-  const updatedList = list.map((target) => {
-    if ((target.group || "General") !== fromName) return target;
-    changed += 1;
-    return {
-      ...target,
-      group: toName,
-    };
-  });
-
-  if (!changed) {
-    return res.status(404).json({ error: "group not found" });
-  }
-
-  const updated = persistWatchlist(updatedList);
-  res.json({ ok: true, changed, groups: buildGroups(updated) });
-});
-
-app.get("/api/config", (_req, res) => {
-  res.json(readConfig());
-});
-
-app.get("/api/settings", (_req, res) => {
-  res.json({
-    config: readConfig(),
-    watchlist: readWatchlist(),
-    limits: buildLimits(readWatchlist()),
-  });
-});
-
-app.post("/api/settings", (req, res) => {
-  const { config, watchlist } = req.body || {};
-  if (!config || typeof config !== "object" || Array.isArray(config)) {
-    return res.status(400).json({ error: "config must be an object" });
-  }
-  if (!Array.isArray(watchlist)) {
-    return res.status(400).json({ error: "watchlist must be an array" });
-  }
-
-  saveJSON(CONFIG_FILE, config);
-  persistWatchlist(watchlist);
-  broadcast({ type: "car-config-updated", ts: Date.now() });
-  res.json({ ok: true });
-});
-
-app.get("/api/found", (_req, res) => {
-  res.json(readFoundDeals());
-});
-
-app.get("/api/shared/found/:platform", (req, res) => {
-  const file = getSharedPlatformFile(req.params.platform);
-  if (!file) return res.status(400).json({ error: "unsupported platform" });
-  const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50) || 50));
-  res.json(readNdjsonTail(file, limit));
-});
-
-app.get("/api/rejected", (_req, res) => {
-  res.json(readRejected());
-});
-
-app.get("/api/logs/:name", (req, res) => {
-  const entries = logs[req.params.name];
-  if (!entries) return res.status(404).json({ error: "Unknown process" });
-  res.json(entries);
-});
-
-app.post("/api/process/start", (req, res) => {
-  const { process: name, flags = [] } = req.body;
-  res.json(startProcess(name, flags));
-});
-
-app.post("/api/process/stop", (req, res) => {
-  const { process: name } = req.body;
-  res.json(stopProcess(name));
-});
-
-app.post("/api/process/:name/start", (req, res) => {
-  res.json(startProcess(req.params.name));
-});
-
-app.post("/api/process/:name/stop", (req, res) => {
-  res.json(stopProcess(req.params.name));
-});
-
-app.post("/api/reset-memory", (_req, res) => {
+async function handleRequest(req, res) {
+  let parsedUrl;
   try {
-    fs.writeFileSync(FOUND_FILE, "", "utf8");
-    fs.writeFileSync(REJECTED_FILE, REJECTED_HEADERS, "utf8");
-    fs.writeFileSync(SEEN_IDS_FILE, "[]", "utf8");
-    broadcast({ type: "car-found-updated", ts: Date.now() });
-    broadcast({ type: "car-rejected-updated", ts: Date.now() });
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: String(err.message || err) });
+    parsedUrl = url.parse(req.url, true);
+  } catch (e) {
+    res.statusCode = 400;
+    res.end("Bad Request");
+    return;
   }
-});
+  const pathname = parsedUrl.pathname;
+  const method = req.method;
 
-app.post("/api/watchlist/add", (req, res) => {
-  const { target } = req.body || {};
-  if (!target || typeof target !== "object" || Array.isArray(target)) {
-    return res.status(400).json({ error: "target object required" });
-  }
+  // Static files
+  if (method === "GET" && !pathname.startsWith("/api")) {
+    let filePath = path.join(UI_DIR, pathname === "/" ? "index.html" : pathname);
+    if (!path.relative(UI_DIR, filePath).startsWith("..") && !path.isAbsolute(path.relative(UI_DIR, filePath))) {
+      // Valid path within UI_DIR
+    } else {
+      res.statusCode = 403;
+      res.end("Forbidden");
+      return;
+    }
 
-  const list = readWatchlist();
-  const sanitizedTarget = sanitizeTarget(target);
-  if (!sanitizedTarget) {
-    return res.status(400).json({ error: "invalid target object" });
-  }
-
-  if (sanitizedTarget.enabled !== false && countEnabled(list) >= MAX_ACTIVE_TARGETS) {
-    sanitizedTarget.enabled = false;
-  }
-
-  // Avoid duplicate ids
-  if (list.some((t) => t.id === sanitizedTarget.id)) {
-    sanitizedTarget.id = `${sanitizedTarget.id}-${Date.now()}`;
-  }
-
-  list.push(sanitizedTarget);
-  const updated = persistWatchlist(list);
-  res.json({
-    ok: true,
-    target: updated.find((target) => target.id === sanitizedTarget.id) || sanitizedTarget,
-    limitReached: sanitizedTarget.enabled === false,
-    limitNote: sanitizedTarget.enabled === false ? LIMIT_NOTE : undefined,
-  });
-});
-
-app.get("/api/shared/settings", (_req, res) => {
-  const ws = requireWorkspace(res);
-  if (!ws) return;
-  const config = ws.loadWorkspaceConfig();
-  const watchlist = ws.loadWorkspaceWatchlist();
-  res.json({
-    config,
-    watchlist,
-    groups: ws.buildWatchlistGroups(watchlist),
-  });
-});
-
-app.post("/api/shared/settings", (req, res) => {
-  const ws = requireWorkspace(res);
-  if (!ws) return;
-  const { config, watchlist } = req.body || {};
-  if (!config || typeof config !== "object" || Array.isArray(config)) {
-    return res.status(400).json({ error: "config must be an object" });
-  }
-  if (!Array.isArray(watchlist)) {
-    return res.status(400).json({ error: "watchlist must be an array" });
-  }
-  ws.saveWorkspaceConfig(config);
-  ws.saveWorkspaceWatchlist(watchlist);
-  broadcast({ type: "shared-config-updated", ts: Date.now() });
-  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
-  res.json({ ok: true });
-});
-
-app.get("/api/shared/watchlist", (_req, res) => {
-  const ws = requireWorkspace(res);
-  if (!ws) return;
-  res.json(ws.loadWorkspaceWatchlist());
-});
-
-app.post("/api/shared/watchlist/add", (req, res) => {
-  const ws = requireWorkspace(res);
-  if (!ws) return;
-  const entry = ws.normalizeWatchlistEntry(req.body?.target);
-  if (!entry) return res.status(400).json({ error: "invalid target object" });
-  const list = ws.loadWorkspaceWatchlist();
-  if (list.some((t) => t.id === entry.id)) entry.id = `${entry.id}-${Date.now()}`;
-  list.push(entry);
-  const saved = ws.saveWorkspaceWatchlist(list);
-  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
-  res.json({ ok: true, target: saved.find((t) => t.id === entry.id) || entry });
-});
-
-app.post("/api/shared/watchlist/toggle", (req, res) => {
-  const ws = requireWorkspace(res);
-  if (!ws) return;
-  const { id, enabled } = req.body || {};
-  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
-  const list = ws.loadWorkspaceWatchlist();
-  const idx = list.findIndex((t) => t.id === id);
-  if (idx === -1) return res.status(404).json({ error: "target not found" });
-  list[idx] = { ...list[idx], enabled: enabled !== false };
-  const saved = ws.saveWorkspaceWatchlist(list);
-  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
-  res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
-});
-
-app.post("/api/shared/watchlist/update", (req, res) => {
-  const ws = requireWorkspace(res);
-  if (!ws) return;
-  const { id, patch } = req.body || {};
-  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
-  if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
-    return res.status(400).json({ error: "patch object is required" });
-  }
-  const list = ws.loadWorkspaceWatchlist();
-  const idx = list.findIndex((t) => t.id === id);
-  if (idx === -1) return res.status(404).json({ error: "target not found" });
-
-  const current = list[idx];
-  const merged = { ...current, ...patch };
-  if (patch.platformOverrides && typeof patch.platformOverrides === "object" && !Array.isArray(patch.platformOverrides)) {
-    merged.platformOverrides = { ...(current.platformOverrides || {}), ...patch.platformOverrides };
-    for (const [key, value] of Object.entries(merged.platformOverrides)) {
-      if (!value || (value.minPrice == null && value.maxPrice == null)) {
-        delete merged.platformOverrides[key];
+    fs.readFile(filePath, (err, content) => {
+      if (err) {
+        res.statusCode = 404;
+        res.end("Not found");
+      } else {
+        const ext = path.extname(filePath).toLowerCase();
+        res.setHeader("Content-Type", MIME_TYPES[ext] || "application/octet-stream");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.end(content);
       }
+    });
+    return;
+  }
+
+  // API Helper
+  function sendJson(data, status = 200) {
+    res.statusCode = status;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify(data));
+  }
+
+  async function getBody() {
+    return new Promise((resolve, reject) => {
+      let body = "";
+      const MAX_SIZE = 512 * 1024; // 512KB limit
+      req.on("data", (chunk) => {
+        body += chunk;
+        if (body.length > MAX_SIZE) {
+          res.statusCode = 413;
+          res.end("Payload Too Large");
+          req.destroy();
+          reject(new Error("Payload Too Large"));
+        }
+      });
+      req.on("end", () => {
+        try { resolve(JSON.parse(body)); }
+        catch (e) {
+          res.statusCode = 400;
+          res.end("Invalid JSON");
+          reject(new Error("Invalid JSON"));
+        }
+      });
+    });
+  }
+
+  // API Routes
+  if (pathname === "/api/status" && method === "GET") {
+    const foundDeals = readFoundDeals();
+    const watchlist = readWatchlist();
+    const processes = {};
+    for (const [key, value] of Object.entries(PROCESSES)) {
+      processes[key] = { label: value.label, running: !!value.proc, stopping: !!value.stopping };
+    }
+    return sendJson({
+      edition: "community",
+      processes,
+      stats: buildStats(foundDeals),
+      watchlistCount: watchlist.length,
+      targetGroups: buildGroups(watchlist),
+      limits: buildLimits(watchlist),
+    });
+  }
+
+  if (pathname === "/api/watchlist" && method === "GET") {
+    return sendJson(readWatchlist());
+  }
+
+  if (pathname === "/api/watchlist/toggle" && method === "POST") {
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { id, enabled } = body;
+    if (!id) return sendJson({ error: "id required" }, 400);
+    const list = readWatchlist();
+    const index = list.findIndex((t) => t.id === id);
+    if (index === -1) return sendJson({ error: "not found" }, 404);
+    if (enabled !== false && list[index].enabled === false && countEnabled(list) >= MAX_ACTIVE_TARGETS) {
+      return sendJson({ error: LIMIT_NOTE, code: "target_limit" }, 403);
+    }
+    list[index].enabled = enabled !== false;
+    const updated = persistWatchlist(list);
+    return sendJson({ ok: true, target: updated.find((t) => t.id === id) });
+  }
+
+  if (pathname === "/api/watchlist/delete" && method === "POST") {
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { id } = body;
+    const list = readWatchlist();
+    const filtered = list.filter((t) => t.id !== id);
+    if (filtered.length === list.length) return sendJson({ error: "not found" }, 404);
+    persistWatchlist(filtered);
+    return sendJson({ ok: true });
+  }
+
+  if (pathname === "/api/watchlist/move" && method === "POST") {
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { id, group } = body;
+    if (!id || !group) return sendJson({ error: "id and group required" }, 400);
+    const list = readWatchlist();
+    const index = list.findIndex((t) => t.id === id);
+    if (index === -1) return sendJson({ error: "not found" }, 404);
+    list[index].group = group.trim();
+    const updated = persistWatchlist(list);
+    return sendJson({ ok: true, target: updated.find((t) => t.id === id) });
+  }
+
+  if (pathname === "/api/watchlist/rename-group" && method === "POST") {
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { from, to } = body;
+    if (!from || !to) return sendJson({ error: "from and to required" }, 400);
+    const list = readWatchlist();
+    let changed = 0;
+    const updated = list.map((t) => {
+      if ((t.group || "General") === from.trim()) { changed++; return { ...t, group: to.trim() }; }
+      return t;
+    });
+    if (!changed) return sendJson({ error: "not found" }, 404);
+    const saved = persistWatchlist(updated);
+    return sendJson({ ok: true, changed, groups: buildGroups(saved) });
+  }
+
+  if (pathname === "/api/config" && method === "GET") {
+    return sendJson(readConfig());
+  }
+
+  if (pathname === "/api/settings" && method === "GET") {
+    const wl = readWatchlist();
+    return sendJson({ config: readConfig(), watchlist: wl, limits: buildLimits(wl) });
+  }
+
+  if (pathname === "/api/settings" && method === "POST") {
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { config, watchlist } = body;
+    if (!config || !Array.isArray(watchlist)) return sendJson({ error: "invalid data" }, 400);
+    saveJSON(CONFIG_FILE, config);
+    persistWatchlist(watchlist);
+    broadcast({ type: "car-config-updated", ts: Date.now() });
+    return sendJson({ ok: true });
+  }
+
+  if (pathname === "/api/found" && method === "GET") {
+    return sendJson(readFoundDeals());
+  }
+
+  if (pathname.startsWith("/api/shared/found/") && method === "GET") {
+    const platform = pathname.split("/").pop();
+    const file = getSharedPlatformFile(platform);
+    if (!file) return sendJson({ error: "unsupported" }, 400);
+    const limit = Math.max(1, Math.min(200, Number(parsedUrl.query.limit) || 50));
+    return sendJson(readNdjsonTail(file, limit));
+  }
+
+  if (pathname === "/api/rejected" && method === "GET") {
+    return sendJson(readRejected());
+  }
+
+  if (pathname.startsWith("/api/logs/") && method === "GET") {
+    const name = pathname.split("/").pop();
+    if (!logs[name]) return sendJson({ error: "unknown" }, 404);
+    return sendJson(logs[name]);
+  }
+
+  if (pathname === "/api/process/start" && method === "POST") {
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { process: name, flags } = body;
+    return sendJson(startProcess(name, flags));
+  }
+
+  if (pathname === "/api/process/stop" && method === "POST") {
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { process: name } = body;
+    return sendJson(stopProcess(name));
+  }
+
+  if (pathname.match(/^\/api\/process\/[^\/]+\/start$/) && method === "POST") {
+    const name = pathname.split("/")[3];
+    return sendJson(startProcess(name));
+  }
+
+  if (pathname.match(/^\/api\/process\/[^\/]+\/stop$/) && method === "POST") {
+    const name = pathname.split("/")[3];
+    return sendJson(stopProcess(name));
+  }
+
+  if (pathname === "/api/reset-memory" && method === "POST") {
+    try {
+      fs.writeFileSync(FOUND_FILE, "", "utf8");
+      fs.writeFileSync(REJECTED_FILE, REJECTED_HEADERS, "utf8");
+      fs.writeFileSync(SEEN_IDS_FILE, "[]", "utf8");
+      broadcast({ type: "car-found-updated", ts: Date.now() });
+      broadcast({ type: "car-rejected-updated", ts: Date.now() });
+      return sendJson({ ok: true });
+    } catch (e) {
+      return sendJson({ error: e.message }, 500);
     }
   }
-  list[idx] = merged;
-  const saved = ws.saveWorkspaceWatchlist(list);
-  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
-  res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
-});
 
-app.post("/api/shared/watchlist/delete", (req, res) => {
-  const ws = requireWorkspace(res);
-  if (!ws) return;
-  const { id } = req.body || {};
-  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
-  const list = ws.loadWorkspaceWatchlist();
-  const filtered = list.filter((t) => t.id !== id);
-  if (filtered.length === list.length) return res.status(404).json({ error: "target not found" });
-  ws.saveWorkspaceWatchlist(filtered);
-  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
-  res.json({ ok: true });
-});
-
-app.post("/api/shared/watchlist/move", (req, res) => {
-  const ws = requireWorkspace(res);
-  if (!ws) return;
-  const { id, group } = req.body || {};
-  if (!id || typeof id !== "string") return res.status(400).json({ error: "target id is required" });
-  if (!group || typeof group !== "string" || !group.trim()) return res.status(400).json({ error: "group name is required" });
-  const list = ws.loadWorkspaceWatchlist();
-  const idx = list.findIndex((t) => t.id === id);
-  if (idx === -1) return res.status(404).json({ error: "target not found" });
-  list[idx] = { ...list[idx], group: group.trim() };
-  const saved = ws.saveWorkspaceWatchlist(list);
-  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
-  res.json({ ok: true, target: saved.find((t) => t.id === id) || null });
-});
-
-app.post("/api/shared/watchlist/rename-group", (req, res) => {
-  const ws = requireWorkspace(res);
-  if (!ws) return;
-  const { from, to } = req.body || {};
-  if (!from || !to || !String(from).trim() || !String(to).trim()) {
-    return res.status(400).json({ error: "from and to group names required" });
+  if (pathname === "/api/watchlist/add" && method === "POST") {
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { target } = body;
+    const sanitized = sanitizeTarget(target);
+    if (!sanitized) return sendJson({ error: "invalid" }, 400);
+    const list = readWatchlist();
+    if (sanitized.enabled !== false && countEnabled(list) >= MAX_ACTIVE_TARGETS) sanitized.enabled = false;
+    if (list.some((t) => t.id === sanitized.id)) sanitized.id += `-${Date.now()}`;
+    list.push(sanitized);
+    const updated = persistWatchlist(list);
+    return sendJson({ ok: true, target: updated.find((t) => t.id === sanitized.id) || sanitized, limitReached: sanitized.enabled === false });
   }
-  const fromName = String(from).trim();
-  const toName = String(to).trim();
-  const list = ws.loadWorkspaceWatchlist();
-  let changed = 0;
-  const updated = list.map((t) => {
-    if ((t.group || "General") !== fromName) return t;
-    changed += 1;
-    return { ...t, group: toName };
-  });
-  if (!changed) return res.status(404).json({ error: "group not found" });
-  const saved = ws.saveWorkspaceWatchlist(updated);
-  broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
-  res.json({ ok: true, changed, groups: ws.buildWatchlistGroups(saved) });
-});
+
+  if (pathname === "/api/shared/settings" && method === "GET") {
+    const ws = await initWorkspace();
+    return sendJson({ config: ws.loadWorkspaceConfig(), watchlist: ws.loadWorkspaceWatchlist(), groups: ws.buildWatchlistGroups(ws.loadWorkspaceWatchlist()) });
+  }
+
+  if (pathname === "/api/shared/settings" && method === "POST") {
+    const ws = await initWorkspace();
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { config, watchlist } = body;
+    if (!config || !Array.isArray(watchlist)) return sendJson({ error: "invalid" }, 400);
+    ws.saveWorkspaceConfig(config);
+    ws.saveWorkspaceWatchlist(watchlist);
+    broadcast({ type: "shared-config-updated", ts: Date.now() });
+    broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+    return sendJson({ ok: true });
+  }
+
+  if (pathname === "/api/shared/watchlist" && method === "GET") {
+    const ws = await initWorkspace();
+    return sendJson(ws.loadWorkspaceWatchlist());
+  }
+
+  if (pathname === "/api/shared/watchlist/add" && method === "POST") {
+    const ws = await initWorkspace();
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const entry = ws.normalizeWatchlistEntry(body.target);
+    if (!entry) return sendJson({ error: "invalid" }, 400);
+    const list = ws.loadWorkspaceWatchlist();
+    if (list.some((t) => t.id === entry.id)) entry.id += `-${Date.now()}`;
+    list.push(entry);
+    const saved = ws.saveWorkspaceWatchlist(list);
+    broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+    return sendJson({ ok: true, target: saved.find((t) => t.id === entry.id) || entry });
+  }
+
+  if (pathname === "/api/shared/watchlist/toggle" && method === "POST") {
+    const ws = await initWorkspace();
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { id, enabled } = body;
+    const list = ws.loadWorkspaceWatchlist();
+    const idx = list.findIndex((t) => t.id === id);
+    if (idx === -1) return sendJson({ error: "not found" }, 404);
+    list[idx].enabled = enabled !== false;
+    const saved = ws.saveWorkspaceWatchlist(list);
+    broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+    return sendJson({ ok: true, target: saved[idx] });
+  }
+
+  if (pathname === "/api/shared/watchlist/update" && method === "POST") {
+    const ws = await initWorkspace();
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { id, patch } = body;
+    const list = ws.loadWorkspaceWatchlist();
+    const idx = list.findIndex((t) => t.id === id);
+    if (idx === -1) return sendJson({ error: "not found" }, 404);
+    const current = list[idx];
+    const merged = { ...current, ...patch };
+    if (patch.platformOverrides) {
+      merged.platformOverrides = { ...current.platformOverrides, ...patch.platformOverrides };
+      for (const k of Object.keys(merged.platformOverrides)) if (!merged.platformOverrides[k] || (merged.platformOverrides[k].minPrice == null && merged.platformOverrides[k].maxPrice == null)) delete merged.platformOverrides[k];
+    }
+    list[idx] = merged;
+    const saved = ws.saveWorkspaceWatchlist(list);
+    broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+    return sendJson({ ok: true, target: saved[idx] });
+  }
+
+  if (pathname === "/api/shared/watchlist/delete" && method === "POST") {
+    const ws = await initWorkspace();
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { id } = body;
+    const list = ws.loadWorkspaceWatchlist();
+    const filtered = list.filter((t) => t.id !== id);
+    if (filtered.length === list.length) return sendJson({ error: "not found" }, 404);
+    ws.saveWorkspaceWatchlist(filtered);
+    broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+    return sendJson({ ok: true });
+  }
+
+  if (pathname === "/api/shared/watchlist/move" && method === "POST") {
+    const ws = await initWorkspace();
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { id, group } = body;
+    const list = ws.loadWorkspaceWatchlist();
+    const idx = list.findIndex((t) => t.id === id);
+    if (idx === -1) return sendJson({ error: "not found" }, 404);
+    list[idx].group = group.trim();
+    const saved = ws.saveWorkspaceWatchlist(list);
+    broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+    return sendJson({ ok: true, target: saved[idx] });
+  }
+
+  if (pathname === "/api/shared/watchlist/rename-group" && method === "POST") {
+    const ws = await initWorkspace();
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const { from, to } = body;
+    const list = ws.loadWorkspaceWatchlist();
+    let changed = 0;
+    const updated = list.map((t) => {
+      if ((t.group || "General") === from.trim()) { changed++; return { ...t, group: to.trim() }; }
+      return t;
+    });
+    if (!changed) return sendJson({ error: "not found" }, 404);
+    const saved = ws.saveWorkspaceWatchlist(updated);
+    broadcast({ type: "shared-watchlist-updated", ts: Date.now() });
+    return sendJson({ ok: true, changed, groups: ws.buildWatchlistGroups(saved) });
+  }
+
+  res.statusCode = 404;
+  res.end("Not found");
+}
 
 wss.on("connection", (ws) => {
   const processes = {};
@@ -866,20 +884,8 @@ wss.on("connection", (ws) => {
 async function startServer(port) {
   await initWorkspace();
   return new Promise((resolve, reject) => {
-    if (listenErrorHandler) {
-      server.removeListener("error", listenErrorHandler);
-    }
-    listenErrorHandler = (error) => {
-      server.removeListener("error", listenErrorHandler);
-      listenErrorHandler = null;
-      reject(error);
-    };
-    server.on("error", listenErrorHandler);
+    server.on("error", (e) => reject(e));
     server.listen(port || 0, "127.0.0.1", () => {
-      if (listenErrorHandler) {
-        server.removeListener("error", listenErrorHandler);
-        listenErrorHandler = null;
-      }
       startWatchers();
       resolve(server.address().port);
     });
@@ -887,15 +893,10 @@ async function startServer(port) {
 }
 
 async function stopServer() {
-  if (listenErrorHandler) {
-    server.removeListener("error", listenErrorHandler);
-    listenErrorHandler = null;
-  }
   for (const file of watchedFiles) fs.unwatchFile(file);
   watchedFiles.clear();
-  watchersStarted = false;
   return new Promise((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
+    server.close((e) => (e ? reject(e) : resolve()));
   });
 }
 

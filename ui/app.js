@@ -17,18 +17,27 @@ const sharedFoundDeals = {
   facebook: [],
   wallapop: [],
   vinted: [],
+  mercadolibre: [],
+  amazon: [],
+  arbitrage: [],
 };
 const foundListingsLoaded = {
   cars: false,
   facebook: false,
   wallapop: false,
   vinted: false,
+  mercadolibre: false,
+  amazon: false,
+  arbitrage: false,
 };
 // In-memory grade filter per platform. Set of selected letter grades; empty Set = show all.
 const sharedGradeFilter = {
   facebook: new Set(),
   wallapop: new Set(),
   vinted: new Set(),
+  mercadolibre: new Set(),
+  amazon: new Set(),
+  arbitrage: new Set(),
 };
 const SHARED_GRADE_LETTERS = ["A", "B", "C", "D", "F"];
 let currentTopTab = "cars";
@@ -44,6 +53,9 @@ const sharedReloadTimers = {
   facebook: null,
   wallapop: null,
   vinted: null,
+  mercadolibre: null,
+  amazon: null,
+  arbitrage: null,
 };
 const terminalBuffers = {};
 let activeDealModal = null;
@@ -65,6 +77,21 @@ const PLATFORM_META = {
     label: "Vinted",
     process: "vinted-sniper",
     description: "Shared Vinted loop with optional cookie override, photos, and Discord routing.",
+  },
+  mercadolibre: {
+    label: "MercadoLibre",
+    process: "mercadolibre-sniper",
+    description: "MercadoLibre search loop with site selection and optional access token.",
+  },
+  amazon: {
+    label: "Amazon",
+    process: "amazon-sniper",
+    description: "Amazon search scraper using Puppeteer for anti-bot bypass and site selection.",
+  },
+  arbitrage: {
+    label: "Arbitrage",
+    process: "arbitrage-engine",
+    description: "P2P Crypto Arbitrage (Currency Dropshipping) between configured fiat pairs using Binance BAPI.",
   },
 };
 
@@ -141,12 +168,63 @@ const DEFAULT_SHARED_CONFIG = {
     facebook: { pollIntervalSec: 90 },
     wallapop: { pollIntervalSec: 60 },
     vinted: { pollIntervalSec: 45, cookie: "", userAgent: "", domain: "" },
+    mercadolibre: { pollIntervalSec: 60, siteId: "MLA", accessToken: "" },
+    amazon: { pollIntervalSec: 300, country: "US" },
+    arbitrage: { pollIntervalSec: 60 },
   },
 };
 
 /* ── Carousel state ─────────────────────────────────────────────────────────── */
 // cardId → current photo index
 const photoIndexes = {};
+
+const MERCADOLIBRE_SITES = [
+  { id: "MLA", country: "Argentina" },
+  { id: "MLB", country: "Brazil" },
+  { id: "MLM", country: "Mexico" },
+  { id: "MLC", country: "Chile" },
+  { id: "MCO", country: "Colombia" },
+  { id: "MLU", country: "Uruguay" },
+  { id: "MPE", country: "Peru" },
+  { id: "MEC", country: "Ecuador" },
+  { id: "MCR", country: "Costa Rica" },
+  { id: "MRD", country: "Dominican Republic" },
+  { id: "MHN", country: "Honduras" },
+  { id: "MNI", country: "Nicaragua" },
+  { id: "MPA", country: "Panama" },
+  { id: "MSV", country: "El Salvador" },
+  { id: "MGT", country: "Guatemala" },
+  { id: "MBO", country: "Bolivia" },
+  { id: "MLV", country: "Venezuela" },
+];
+
+function buildMercadoLibreSiteOptions(selected) {
+  const current = String(selected || "MLA").trim().toUpperCase();
+  return MERCADOLIBRE_SITES.map((s) => {
+    const sel = s.id === current ? "selected" : "";
+    return `<option value="${escAttr(s.id)}" ${sel}>${escHtml(s.country)} (${escHtml(s.id)})</option>`;
+  }).join("");
+}
+
+const AMAZON_SITES = [
+  { id: "US", country: "United States" },
+  { id: "ES", country: "Spain" },
+  { id: "UK", country: "United Kingdom" },
+  { id: "DE", country: "Germany" },
+  { id: "FR", country: "France" },
+  { id: "IT", country: "Italy" },
+  { id: "MX", country: "Mexico" },
+  { id: "BR", country: "Brazil" },
+  { id: "CA", country: "Canada" },
+];
+
+function buildAmazonSiteOptions(selected) {
+  const current = String(selected || "US").trim().toUpperCase();
+  return AMAZON_SITES.map((s) => {
+    const sel = s.id === current ? "selected" : "";
+    return `<option value="${escAttr(s.id)}" ${sel}>${escHtml(s.country)} (${escHtml(s.id)})</option>`;
+  }).join("");
+}
 
 const VINTED_DOMAINS = [
   { domain: "www.vinted.com",   country: "United States" },
@@ -491,6 +569,10 @@ function normalizeSharedConfig(config = {}) {
         ...(((config && config.notifications) || {}).discord || {}),
       },
     },
+    filters: {
+      ...DEFAULT_SHARED_CONFIG.filters,
+      ...((config && config.filters) || {}),
+    },
     bots: {
       facebook: {
         ...DEFAULT_SHARED_CONFIG.bots.facebook,
@@ -503,6 +585,18 @@ function normalizeSharedConfig(config = {}) {
       vinted: {
         ...DEFAULT_SHARED_CONFIG.bots.vinted,
         ...(((config && config.bots) || {}).vinted || {}),
+      },
+      mercadolibre: {
+        ...DEFAULT_SHARED_CONFIG.bots.mercadolibre,
+        ...(((config && config.bots) || {}).mercadolibre || {}),
+      },
+      amazon: {
+        ...DEFAULT_SHARED_CONFIG.bots.amazon,
+        ...(((config && config.bots) || {}).amazon || {}),
+      },
+      arbitrage: {
+        ...DEFAULT_SHARED_CONFIG.bots.arbitrage,
+        ...(((config && config.bots) || {}).arbitrage || {}),
       },
     },
   };
@@ -792,6 +886,8 @@ function renderMarketplaceTab(platform) {
             <span class="sniper-setting-unit">s</span>
           </div>
           ${platform === "vinted" ? buildVintedExtraSettings(botConfig) : ""}
+          ${platform === "mercadolibre" ? buildMercadoLibreExtraSettings(botConfig) : ""}
+          ${platform === "amazon" ? buildAmazonExtraSettings(botConfig) : ""}
           <div class="sniper-setting-item">
             <button class="btn btn-secondary btn-sm" onclick="applyBotSettings('${platform}')">Apply</button>
             <span class="sniper-setting-hint">Takes effect on next Start</span>
@@ -852,6 +948,35 @@ function renderMarketplaceTab(platform) {
   flushSniperTerminal(meta.process);
 }
 
+function buildAmazonExtraSettings(botConfig) {
+  const country = botConfig.country || "US";
+  return `
+    <div class="sniper-setting-item">
+      <label for="sniper-amazon-country">Site</label>
+      <select id="sniper-amazon-country">
+        ${buildAmazonSiteOptions(country)}
+      </select>
+    </div>
+  `;
+}
+
+function buildMercadoLibreExtraSettings(botConfig) {
+  const siteId = botConfig.siteId || "MLA";
+  const accessToken = botConfig.accessToken || "";
+  return `
+    <div class="sniper-setting-item">
+      <label for="sniper-mercadolibre-site">Site</label>
+      <select id="sniper-mercadolibre-site">
+        ${buildMercadoLibreSiteOptions(siteId)}
+      </select>
+    </div>
+    <div class="sniper-setting-item sniper-setting-cookie">
+      <label for="sniper-mercadolibre-token">Access Token</label>
+      <input type="password" id="sniper-mercadolibre-token" placeholder="Optional App Access Token" autocomplete="off" value="${escAttr(accessToken)}" />
+    </div>
+  `;
+}
+
 function buildVintedExtraSettings(botConfig) {
   const cookie = botConfig.cookie || "";
   const ua = botConfig.userAgent || "";
@@ -887,6 +1012,13 @@ async function applyBotSettings(platform) {
     nextBot.cookie = document.getElementById("sniper-vinted-cookie")?.value.trim() || "";
     nextBot.userAgent = document.getElementById("sniper-vinted-ua")?.value.trim() || "";
     nextBot.domain = document.getElementById("sniper-vinted-domain")?.value.trim() || "";
+  }
+  if (platform === "mercadolibre") {
+    nextBot.siteId = document.getElementById("sniper-mercadolibre-site")?.value.trim() || "MLA";
+    nextBot.accessToken = document.getElementById("sniper-mercadolibre-token")?.value.trim() || "";
+  }
+  if (platform === "amazon") {
+    nextBot.country = document.getElementById("sniper-amazon-country")?.value.trim() || "US";
   }
   const nextConfig = normalizeSharedConfig({
     ...sharedConfig,
@@ -962,7 +1094,7 @@ function renderSharedWatchlistTab() {
 
 function buildSharedWatchCard(target) {
   const globallyOff = target.enabled === false;
-  const platforms = ["facebook", "wallapop", "vinted"];
+  const platforms = ["facebook", "wallapop", "vinted", "mercadolibre", "amazon"];
   const chipsHtml = platforms.map((p) => buildSharedWatchSiteChip(target, p)).join("");
 
   const facts = [];
@@ -1204,6 +1336,30 @@ function renderSharedSettings() {
             <label for="sharedDiscordMaybe">Discord Webhook: Maybe</label>
             <input id="sharedDiscordMaybe" class="quick-input" type="url" value="${escAttr(config.notifications?.discord?.maybeWebhookUrl || "")}" placeholder="Optional" />
           </div>
+          <div class="form-field">
+            <label for="sharedMinProfit">Min Profit ($)</label>
+            <input id="sharedMinProfit" class="quick-input" type="number" step="1" value="${escAttr(config.filters?.minProfit ?? 50)}" />
+          </div>
+          <div class="form-field">
+            <label for="sharedMinROI">Min ROI (%)</label>
+            <input id="sharedMinROI" class="quick-input" type="number" step="1" value="${escAttr(config.filters?.minROI ?? 30)}" />
+          </div>
+          <div class="form-field">
+            <label for="sharedZScoreThreshold">Z-Score Threshold</label>
+            <input id="sharedZScoreThreshold" class="quick-input" type="number" step="0.1" value="${escAttr(config.filters?.zScoreThreshold ?? -2.0)}" />
+          </div>
+          <div class="form-field checkbox-field">
+            <label for="sharedZScoreEnabled">Enable Z-Score Trigger</label>
+            <input id="sharedZScoreEnabled" type="checkbox" ${config.filters?.zScoreEnabled ? "checked" : ""} />
+          </div>
+          <div class="form-field form-field-wide">
+            <label for="sharedGlobalMustAvoid">Global Blacklist (comma separated)</label>
+            <textarea id="sharedGlobalMustAvoid" class="quick-input quick-textarea" rows="2">${escHtml((config.filters?.globalMustAvoid || []).join(", "))}</textarea>
+          </div>
+          <div class="form-field form-field-wide">
+            <label for="sharedGlobalPriorityKeywords">Global Whitelist (comma separated)</label>
+            <textarea id="sharedGlobalPriorityKeywords" class="quick-input quick-textarea" rows="2">${escHtml((config.filters?.globalPriorityKeywords || []).join(", "))}</textarea>
+          </div>
           ${Object.keys(PLATFORM_META).map((platform) => buildBotFieldset(platform, config.bots[platform] || {})).join("")}
         </form>
       </section>
@@ -1248,6 +1404,26 @@ function buildBotFieldset(platform, botConfig) {
           <input id="bot-vinted-ua" class="quick-input" type="text" value="${escAttr(botConfig.userAgent || "")}" placeholder="Paste the exact UA the cookie was minted in (DevTools → Network → any request → Headers → user-agent). Leave blank for mobile Safari default." />
         </div>
       ` : ""}
+      ${platform === "mercadolibre" ? `
+        <div class="form-field">
+          <label for="bot-mercadolibre-site">MercadoLibre Site</label>
+          <select id="bot-mercadolibre-site" class="quick-input">
+            ${buildMercadoLibreSiteOptions(botConfig.siteId)}
+          </select>
+        </div>
+        <div class="form-field form-field-wide">
+          <label for="bot-mercadolibre-token">Access Token</label>
+          <input id="bot-mercadolibre-token" class="quick-input" type="password" value="${escAttr(botConfig.accessToken || "")}" placeholder="Optional App Access Token" />
+        </div>
+      ` : ""}
+      ${platform === "amazon" ? `
+        <div class="form-field">
+          <label for="bot-amazon-country">Amazon Site</label>
+          <select id="bot-amazon-country" class="quick-input">
+            ${buildAmazonSiteOptions(botConfig.country)}
+          </select>
+        </div>
+      ` : ""}
     </fieldset>
   `;
 }
@@ -1287,6 +1463,14 @@ function readSharedSettingsForm() {
         maybeWebhookUrl: document.getElementById("sharedDiscordMaybe")?.value.trim() || "",
       },
     },
+    filters: {
+      minProfit: Number(document.getElementById("sharedMinProfit")?.value || 50),
+      minROI: Number(document.getElementById("sharedMinROI")?.value || 30),
+      zScoreThreshold: Number(document.getElementById("sharedZScoreThreshold")?.value || -2.0),
+      zScoreEnabled: !!document.getElementById("sharedZScoreEnabled")?.checked,
+      globalMustAvoid: (document.getElementById("sharedGlobalMustAvoid")?.value || "").split(",").map(s => s.trim()).filter(Boolean),
+      globalPriorityKeywords: (document.getElementById("sharedGlobalPriorityKeywords")?.value || "").split(",").map(s => s.trim()).filter(Boolean),
+    },
     bots: {
       facebook: {
         ...base.bots.facebook,
@@ -1302,6 +1486,21 @@ function readSharedSettingsForm() {
         cookie: document.getElementById("bot-vinted-cookie")?.value.trim() || "",
         userAgent: document.getElementById("bot-vinted-ua")?.value.trim() || "",
         domain: document.getElementById("bot-vinted-domain")?.value.trim() || "",
+      },
+      mercadolibre: {
+        ...base.bots.mercadolibre,
+        pollIntervalSec: clampNumber(document.getElementById("bot-mercadolibre-poll")?.value, 5, 3600, base.bots.mercadolibre.pollIntervalSec),
+        siteId: document.getElementById("bot-mercadolibre-site")?.value.trim() || "MLA",
+        accessToken: document.getElementById("bot-mercadolibre-token")?.value.trim() || "",
+      },
+      amazon: {
+        ...base.bots.amazon,
+        pollIntervalSec: clampNumber(document.getElementById("bot-amazon-poll")?.value, 5, 3600, base.bots.amazon.pollIntervalSec),
+        country: document.getElementById("bot-amazon-country")?.value.trim() || "US",
+      },
+      arbitrage: {
+        ...base.bots.arbitrage,
+        pollIntervalSec: clampNumber(document.getElementById("bot-arbitrage-poll")?.value, 5, 3600, base.bots.arbitrage.pollIntervalSec),
       },
     },
   };
@@ -1397,6 +1596,9 @@ function foundPlatformBadgeClass(platform) {
   if (platform === "cars") return "badge-platform-cars";
   if (platform === "wallapop") return "badge-platform-wallapop";
   if (platform === "vinted") return "badge-platform-vinted";
+  if (platform === "mercadolibre") return "badge-platform-mercadolibre";
+  if (platform === "amazon") return "badge-platform-amazon";
+  if (platform === "arbitrage") return "badge-platform-cars"; // Reuse a color
   return "badge-platform-facebook";
 }
 
@@ -1411,6 +1613,7 @@ function buildSharedDealCard(platform, deal) {
   const reasons = normalizeReasonList(deal?.reasons).slice(0, 3);
   const photos = collectSharedPhotoUrls(deal);
   const price = deal?.listing_price ?? deal?.listing?.price ?? deal?.item?.price ?? deal?.price;
+  const currency = deal?.currency || deal?.currency_id || (platform === "mercadolibre" || platform === "amazon" ? "" : "EUR");
   const sellerBits = [
     deal?.seller?.name,
     deal?.seller?.rating != null ? `${deal.seller.rating}★` : "",
@@ -1467,7 +1670,7 @@ function buildSharedDealCard(platform, deal) {
         <div class="marketplace-metrics compact">
           <div class="market-metric">
             <span class="market-metric-label">Listed</span>
-            <strong>${formatEuro(price)}</strong>
+            <strong>${formatPrice(price, currency)}</strong>
           </div>
           <div class="market-metric">
             <span class="market-metric-label">Score</span>
@@ -2550,6 +2753,12 @@ function formatMoney(v) {
 function formatEuro(v) {
   const n = Number(v);
   return Number.isFinite(n) ? `EUR ${n.toLocaleString()}` : "–";
+}
+
+function formatPrice(v, currency) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "–";
+  return currency ? `${currency} ${n.toLocaleString()}` : n.toLocaleString();
 }
 
 function formatMiles(v) {

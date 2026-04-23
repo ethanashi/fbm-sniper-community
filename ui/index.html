@@ -15,9 +15,12 @@
       <button class="nav-btn" data-tab="facebook">Facebook</button>
       <button class="nav-btn" data-tab="wallapop">Wallapop</button>
       <button class="nav-btn" data-tab="vinted">Vinted</button>
-      <button class="nav-btn" data-tab="found-listings">Found Listings</button>
-      <button class="nav-btn" data-tab="watchlist">Watchlist</button>
-      <button class="nav-btn" data-tab="settings">Settings</button>
+      <button class="nav-btn" data-tab="mercadolibre">MercadoLibre</button>
+      <button class="nav-btn" data-tab="amazon">Amazon</button>
+      <button class="nav-btn" data-tab="arbitrage">Arbitrage</button>
+      <button class="nav-btn" data-tab="found-listings">Matches</button>
+      <button class="nav-btn" data-tab="watchlist">Targets</button>
+      <button class="nav-btn" data-tab="settings">Config</button>
       <button class="nav-btn" data-tab="logs">Logs</button>
     </nav>
     <div class="ws-indicator" id="wsIndicator" title="Live connection">●</div>
@@ -246,6 +249,9 @@
     <section class="tab" id="tab-facebook"><div id="facebookPanel"></div></section>
     <section class="tab" id="tab-wallapop"><div id="wallapopPanel"></div></section>
     <section class="tab" id="tab-vinted"><div id="vintedPanel"></div></section>
+    <section class="tab" id="tab-mercadolibre"><div id="mercadolibrePanel"></div></section>
+    <section class="tab" id="tab-amazon"><div id="amazonPanel"></div></section>
+    <section class="tab" id="tab-arbitrage"><div id="arbitragePanel"></div></section>
     <section class="tab" id="tab-found-listings">
       <div class="platform-shell">
         <section class="hero-panel">
@@ -263,6 +269,8 @@
               <option value="facebook">Facebook</option>
               <option value="wallapop">Wallapop</option>
               <option value="vinted">Vinted</option>
+              <option value="mercadolibre">MercadoLibre</option>
+              <option value="amazon">Amazon</option>
               <option value="cars">Cars</option>
             </select>
             <select id="foundListingsGradeFilter" class="filter-select">
@@ -297,6 +305,9 @@
           <option value="facebook-sniper">Facebook</option>
           <option value="wallapop-sniper">Wallapop</option>
           <option value="vinted-sniper">Vinted</option>
+          <option value="mercadolibre-sniper">MercadoLibre</option>
+          <option value="amazon-sniper">Amazon</option>
+          <option value="arbitrage-engine">Arbitrage</option>
         </select>
         <label class="autoscroll">
           <input type="checkbox" id="autoScroll" checked />

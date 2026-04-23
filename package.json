@@ -11,20 +11,22 @@
     "scan:test": "node lib/scanner.js --test",
     "ui": "node server.cjs",
     "desktop": "electron electron.cjs",
-    "check": "node --check lib/scanner.js && node --check lib/fb-scraper.js && node --check lib/fb-session.js && node --check lib/facebook-sniper.js && node --check lib/wallapop-sniper.js && node --check lib/vinted-sniper.js && node --check lib/shared-marketplace/notifier.js && node --check server.cjs && node --check electron.cjs && node --check ui/app.js",
+    "check": "node --check lib/scanner.js && node --check lib/fb-scraper.js && node --check lib/fb-session.js && node --check lib/facebook-sniper.js && node --check lib/wallapop-sniper.js && node --check lib/vinted-sniper.js && node --check lib/mercadolibre-sniper.js && node --check lib/shared-marketplace/notifier.js && node --check server.cjs && node --check electron.cjs && node --check ui/app.js",
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
     "build:win:local": "node build/build-win-local.cjs",
     "build:all": "npm run build:mac && npm run build:win:local"
   },
   "dependencies": {
-    "axios": "^1.6.5",
-    "chalk": "^5.3.0",
-    "dayjs": "^1.11.10",
-    "express": "^4.22.1",
-    "puppeteer": "^24.40.0",
+    "chalk": "^5.6.2",
+    "dayjs": "^1.11.20",
+    "https-proxy-agent": "^9.0.0",
+    "node-fetch": "^3.3.2",
+    "puppeteer": "^24.42.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^6.0.1",
     "ws": "^8.20.0"
   },
   "devDependencies": {
