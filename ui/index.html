@@ -71,6 +71,26 @@
     .btn-execute:hover { background: #35a044; }
     .btn-journal { background: #d4a72c; color: white; }
     .btn-journal:hover { background: #b58d22; }
+    .btn-emergency {
+      background: linear-gradient(180deg, #f15a5a 0%, #b73838 100%);
+      color: white;
+      border-color: rgba(240,82,82,.5);
+      margin-left: auto;
+      font-weight: 800;
+      padding: 0.6rem 1.2rem;
+    }
+    .btn-emergency:hover { background: #fa6464; }
+    .system-halted-banner {
+      background: rgba(240,82,82,0.1);
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: 1rem;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      display: none;
+    }
   </style>
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 </head>

@@ -4,6 +4,7 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const url = require("url");
+const crypto = require("crypto");
 
 let journalManager = null;
 async function initJournal() {
@@ -94,6 +95,8 @@ const PROCESSES = {
   },
 };
 
+const SESSION_TOKEN = crypto.randomBytes(32).toString("hex");
+
 let workspace = null;
 async function initWorkspace() {
   if (workspace) return workspace;
@@ -107,7 +110,18 @@ const stopTimers = {};
 for (const key of Object.keys(PROCESSES)) logs[key] = [];
 
 const server = createServer(handleRequest);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({
+  server,
+  verifyClient: (info, callback) => {
+    const parsedUrl = url.parse(info.req.url, true);
+    const token = parsedUrl.query.token;
+    if (token === SESSION_TOKEN) {
+      callback(true);
+    } else {
+      callback(false, 401, "Unauthorized: Invalid Session Token");
+    }
+  }
+});
 
 function broadcast(data) {
   const msg = JSON.stringify(data);
@@ -151,6 +165,7 @@ function startProcess(name, extraArgs = []) {
       ...proxyEnv,
     },
     windowsHide: true,
+    stdio: ['inherit', 'pipe', 'pipe', 'ipc'] // Add IPC for Emergency Halt
   });
 
   def.proc = proc;
@@ -530,24 +545,42 @@ async function handleRequest(req, res) {
 
   // Static files
   if (method === "GET" && !pathname.startsWith("/api")) {
-    let filePath = path.join(UI_DIR, pathname === "/" ? "index.html" : pathname);
-    if (!path.relative(UI_DIR, filePath).startsWith("..") && !path.isAbsolute(path.relative(UI_DIR, filePath))) {
-      // Valid path within UI_DIR
-    } else {
-      res.statusCode = 403;
-      res.end("Forbidden");
-      return;
+    const isIndex = pathname === "/" || pathname === "/index.html";
+    let subPath = isIndex ? "index.html" : pathname;
+
+    // Remove leading slash for path.join
+    const cleanSubPath = subPath.startsWith("/") ? subPath.substring(1) : subPath;
+    let filePath = path.join(UI_DIR, cleanSubPath);
+
+    // Safety check: ensure file is within UI_DIR
+    const relative = path.relative(UI_DIR, filePath);
+    if (relative.includes("..") || path.isAbsolute(relative)) {
+      // Allow only files inside UI_DIR
+      if (relative !== "") {
+          res.statusCode = 403;
+          res.end("Forbidden");
+          return;
+      }
     }
 
     fs.readFile(filePath, (err, content) => {
       if (err) {
+        console.error(`[server] Static file not found: ${filePath} (pathname: ${pathname})`);
         res.statusCode = 404;
         res.end("Not found");
       } else {
         const ext = path.extname(filePath).toLowerCase();
         res.setHeader("Content-Type", MIME_TYPES[ext] || "application/octet-stream");
         res.setHeader("X-Content-Type-Options", "nosniff");
-        res.end(content);
+
+        if (isIndex) {
+          let html = content.toString();
+          // Inject session token for WSS auth
+          html = html.replace("<head>", `<head>\n  <meta name="session-token" content="${SESSION_TOKEN}">`);
+          res.end(html);
+        } else {
+          res.end(content);
+        }
       }
     });
     return;
@@ -903,6 +936,20 @@ wss.on("connection", (ws) => {
     targetGroups: buildGroups(readWatchlist()),
     limits: buildLimits(readWatchlist()),
   }));
+
+  ws.on("message", (data) => {
+    try {
+      const msg = JSON.parse(data);
+      if (msg.command === "EMERGENCY_HALT") {
+        console.log("!!! EMERGENCY HALT RECEIVED FROM UI !!!");
+        const arbitrageProc = PROCESSES["arbitrage-engine"].proc;
+        if (arbitrageProc) {
+          arbitrageProc.send("HALT");
+        }
+        broadcast({ type: "system-status", status: "System Halted", profile_id: "ALL" });
+      }
+    } catch (e) {}
+  });
 });
 
 async function startServer(port) {

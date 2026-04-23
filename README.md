@@ -26,6 +26,7 @@ This application functions as a comprehensive monitoring dashboard and automated
 *   **Dynamic Fee Aggregation:** Automatically calculates net ROI by summing source and destination platform fees.
 *   **Combinatorial Arbitrage:** Analyzes all possible combinations of source/destination exchanges and fiat currencies.
 *   **Privacy & Security:** Runs entirely locally. No external APIs except for the target marketplaces. Native Node.js implementation without heavy frameworks like Express.
+*   **Operational Control:** Includes a secure WebSocket handshake with session-based authentication and a global "Emergency Halt" kill switch for immediate risk mitigation.
 
 ## Tech Stack
 

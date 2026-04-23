@@ -11,9 +11,18 @@ import { ARBITRAGE_DATA_DIR, ARBITRAGE_FOUND_FILE } from '../lib/paths.js';
  * Arbitrage Engine - Core math and logic for Cross-Platform P2P Arbitrage.
  */
 export class ArbitrageEngine {
-  constructor(profile) {
+  constructor(profile, options = {}) {
     this.profile = profile;
     this.config = GLOBAL_ARBITRAGE_CONFIG;
+    this.isHalted = false;
+    this.eventBus = options.eventBus;
+
+    if (this.eventBus) {
+      this.eventBus.on('HALT', () => {
+        this.isHalted = true;
+        console.log(chalk.red(`[arbitrage:${this.profile.id}] HALT signal received. Stopping loop...`));
+      });
+    }
     this.adapters = {
       binance: new BinanceBapiAdapter(),
       eldorado: new ElDoradoAdapter(),
@@ -53,6 +62,8 @@ export class ArbitrageEngine {
    * Run one iteration of the arbitrage check.
    */
   async checkOpportunities() {
+    if (this.isHalted) return;
+
     try {
       console.log(chalk.blue(`[arbitrage:${this.profile.id}] Scanning combinations for profile ${this.profile.label}...`));
       const results = [];
@@ -184,7 +195,13 @@ export class ArbitrageEngine {
   start() {
     console.log(chalk.blueBright(`=== Arbitrage Engine Started [Profile: ${this.profile.id}] ===`));
     this.checkOpportunities();
-    this.interval = setInterval(() => this.checkOpportunities(), this.config.POLL_INTERVAL_MS);
+    this.interval = setInterval(() => {
+      if (this.isHalted) {
+        clearInterval(this.interval);
+        return;
+      }
+      this.checkOpportunities();
+    }, this.config.POLL_INTERVAL_MS);
   }
 
   stop() {

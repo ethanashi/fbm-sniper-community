@@ -57,6 +57,14 @@ function getDeepLink(platform, asset, fiat, side) {
   return '';
 }
 
+function triggerEmergencyHalt() {
+  if (!confirm("🚨 ATTENTION: This will immediately stop ALL arbitrage engines. Continue?")) return;
+
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ command: "EMERGENCY_HALT" }));
+  }
+}
+
 async function markAsTraded(deal) {
   try {
     const res = await fetch("/api/journal/add", {
@@ -416,8 +424,9 @@ function loadCarsViewData() {
 
 /* ── WebSocket ──────────────────────────────────────────────────────────────── */
 function connectWS() {
+  const token = document.querySelector('meta[name="session-token"]')?.content || "";
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  ws = new WebSocket(`${proto}://${location.host}`);
+  ws = new WebSocket(`${proto}://${location.host}?token=${token}`);
 
   ws.onopen = () => {
     document.getElementById("wsIndicator")?.classList.add("connected");
@@ -432,6 +441,12 @@ function connectWS() {
   ws.onmessage = ({ data }) => {
     let msg;
     try { msg = JSON.parse(data); } catch { return; }
+
+    if (msg.type === "system-status" && msg.status === "System Halted") {
+      document.querySelectorAll(".system-halted-banner").forEach(b => b.style.display = "block");
+      showToast("SYSTEM HALTED - EMERGENCY STOP TRIGGERED", "err");
+      return;
+    }
 
     if (msg.type === "init") {
       processState = msg.processes || {};
@@ -1182,7 +1197,10 @@ function renderMarketplaceTab(platform) {
                 <span class="slider"></span>
               </label>
             </div>
+            <button class="btn btn-emergency" onclick="triggerEmergencyHalt()">EMERGENCY STOP</button>
           </div>
+
+          <div class="system-halted-banner">⚠️ SYSTEM HALTED: EMERGENCY STOP ACTIVE</div>
 
           <div id="${platform}-best-summary" class="arbitrage-best-summary" style="margin-bottom: 1rem;"></div>
 
