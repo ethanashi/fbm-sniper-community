@@ -5,6 +5,15 @@ const fs = require("fs");
 const path = require("path");
 const url = require("url");
 
+let journalManager = null;
+async function initJournal() {
+  if (journalManager) return journalManager;
+  const mod = await import("./lib/journal-manager.js");
+  journalManager = mod.journalManager;
+  await journalManager.init();
+  return journalManager;
+}
+
 const MAX_ACTIVE_TARGETS = 10;
 const LIMIT_NOTE = "Max active targets reached (10). Disable a target to enable another.";
 
@@ -576,6 +585,20 @@ async function handleRequest(req, res) {
   }
 
   // API Routes
+  if (pathname === "/api/journal" && method === "GET") {
+    const jm = await initJournal();
+    const data = await jm.getJournal();
+    return sendJson(data);
+  }
+
+  if (pathname === "/api/journal/add" && method === "POST") {
+    let body;
+    try { body = await getBody(); } catch { return; }
+    const jm = await initJournal();
+    const result = await jm.recordTrade(body);
+    return sendJson(result);
+  }
+
   if (pathname === "/api/status" && method === "GET") {
     const foundDeals = readFoundDeals();
     const watchlist = readWatchlist();

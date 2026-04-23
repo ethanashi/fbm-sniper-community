@@ -6,6 +6,72 @@
   <title>FBM Sniper Community Edition</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Phase 9 Tools Panel Styles */
+    .tools-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+    }
+    .tool-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 40px;
+      height: 20px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #444;
+      transition: .4s;
+      border-radius: 20px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: var(--accent);
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    .tool-label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+    .btn-execute { background: #3fb950; color: white; }
+    .btn-execute:hover { background: #35a044; }
+    .btn-journal { background: #d4a72c; color: white; }
+    .btn-journal:hover { background: #b58d22; }
+  </style>
   <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>

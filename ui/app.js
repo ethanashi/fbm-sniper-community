@@ -13,6 +13,66 @@ let sharedGroups = [];
 let carSettingsDirty = false;
 let sharedSettingsDirty = false;
 const FOUND_LISTINGS_STORAGE_KEY = "fbm-found-listings-columns";
+const TOOLS_CONFIG_KEY = "fbm-tools-config";
+
+let toolsConfig = {
+  deepLinks: false,
+  tradeJournal: false
+};
+
+function loadToolsConfig() {
+  try {
+    const raw = localStorage.getItem(TOOLS_CONFIG_KEY);
+    if (raw) toolsConfig = { ...toolsConfig, ...JSON.parse(raw) };
+  } catch (e) {}
+}
+
+function saveToolsConfig() {
+  localStorage.setItem(TOOLS_CONFIG_KEY, JSON.stringify(toolsConfig));
+}
+
+function toggleTool(key, enabled) {
+  toolsConfig[key] = enabled;
+  saveToolsConfig();
+
+  // Re-render only necessary parts instead of everything if possible,
+  // but for reliability during Phase 9 implementation:
+  const platform = currentTopTab;
+  if (PLATFORM_META[platform]) {
+    renderMarketplaceTab(platform);
+  }
+}
+
+function getDeepLink(platform, asset, fiat, side) {
+  if (platform === 'binance') {
+    const bSide = side === 'BUY' ? 'BUY' : 'SELL';
+    return `https://p2p.binance.com/en/trade/${bSide}/${asset}?fiat=${fiat}&payment=all-payments`;
+  }
+  if (platform === 'eldorado') {
+    return 'https://eldorado.io/p2p/';
+  }
+  if (platform === 'airtm') {
+    return 'https://app.airtm.com/p2p';
+  }
+  return '';
+}
+
+async function markAsTraded(deal) {
+  try {
+    const res = await fetch("/api/journal/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(deal),
+    });
+    if (res.ok) {
+      showToast("Trade recorded in journal.");
+    } else {
+      throw new Error("Failed to record trade.");
+    }
+  } catch (err) {
+    showToast(`Journal error: ${err.message}`, "err");
+  }
+}
 const sharedFoundDeals = {
   facebook: [],
   wallapop: [],
@@ -1053,6 +1113,8 @@ function renderMarketplaceTab(platform) {
   const mount = document.getElementById(`${platform}Panel`);
   if (!mount) return;
 
+  loadToolsConfig();
+
   const meta = PLATFORM_META[platform];
   const info = processState[meta.process] || { running: false, stopping: false, label: `${meta.label} Sniper` };
   const botConfig = normalizeSharedConfig(sharedConfig).bots[platform];
@@ -1105,6 +1167,23 @@ function renderMarketplaceTab(platform) {
 
       <div class="sniper-body">
         ${(platform === 'arbitrage' || platform === 'anomalia') ? `
+          <div class="tools-panel">
+            <div class="tool-group">
+              <span class="tool-label">Enable Deep Links</span>
+              <label class="switch">
+                <input type="checkbox" class="toggle-deep-links" onchange="toggleTool('deepLinks', this.checked)" ${toolsConfig.deepLinks ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="tool-group">
+              <span class="tool-label">Enable Trade Journal</span>
+              <label class="switch">
+                <input type="checkbox" class="toggle-trade-journal" onchange="toggleTool('tradeJournal', this.checked)" ${toolsConfig.tradeJournal ? 'checked' : ''}>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
           <div id="${platform}-best-summary" class="arbitrage-best-summary" style="margin-bottom: 1rem;"></div>
 
           <section class="sniper-pane arbitrage-ranking-pane" style="margin-bottom: 1rem;">
@@ -1942,7 +2021,26 @@ function buildSharedDealCard(platform, deal) {
         ${reasons.length ? `<div class="car-notes">${escHtml(reasons.join(" • "))}</div>` : ""}
         <div class="car-footer">
           <div class="car-target-label">${escHtml(timestamp ? new Date(timestamp).toLocaleString() : "Latest shared deal")}</div>
-          <div class="car-actions">
+          <div class="car-actions" data-deal='${escAttr(JSON.stringify({
+            profile_id: deal.profile_id,
+            source_exchange: deal.source_exchange,
+            destination_exchange: deal.destination_exchange,
+            fiat_origin: deal.fiat_origin,
+            fiat_destination: deal.fiat,
+            buyPriceUSD: deal.buyPriceUSD,
+            sellPriceUSD: deal.sellPriceUSD,
+            netProfit: deal.netProfit,
+            roi: deal.roi,
+            volume: deal.volume,
+            timestamp: deal.timestamp
+          }))}'>
+            ${(platform === 'arbitrage' || platform === 'anomalia') && toolsConfig.deepLinks ? `
+              <button class="car-open-btn btn-execute" onclick="openInBrowser('${escAttr(getDeepLink(deal.source_exchange, 'USDT', deal.fiat_origin, 'BUY'))}')">Exec Buy ↗</button>
+              <button class="car-open-btn btn-execute" onclick="openInBrowser('${escAttr(getDeepLink(deal.destination_exchange, 'USDT', deal.fiat, 'SELL'))}')">Exec Sell ↗</button>
+            ` : ''}
+            ${(platform === 'arbitrage' || platform === 'anomalia') && toolsConfig.tradeJournal ? `
+              <button class="car-open-btn btn-journal" onclick="markAsTraded(this.parentElement.dataset.deal ? JSON.parse(this.parentElement.dataset.deal) : {})">Mark Traded</button>
+            ` : ''}
             <button class="car-open-btn" onclick="openInBrowser('${escAttr(url)}')">Open ↗</button>
           </div>
         </div>
