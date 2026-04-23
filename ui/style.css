@@ -2116,3 +2116,59 @@ h2 {
 .grade-chip-c.active { background: rgba(246,201,78,.18); border-color: rgba(246,201,78,.5);  color: #f6c94e; }
 .grade-chip-d.active { background: rgba(240,82,82,.14);  border-color: rgba(240,82,82,.45);  color: #ff8d8d; }
 .grade-chip-f.active { background: rgba(240,82,82,.18);  border-color: rgba(240,82,82,.55);  color: #ff8d8d; }
+
+/* ── Arbitrage Ranking Bars ────────────────────────────────────────────────── */
+.arbitrage-ranking-item {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ranking-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.ranking-route {
+  font-weight: 600;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.ranking-roi {
+  font-weight: 700;
+  color: var(--green);
+}
+
+.ranking-bar-bg {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.ranking-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.exchange-badge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: var(--border);
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.exchange-badge-buy { background: rgba(79, 126, 248, 0.15); color: #9cb7ff; border-color: rgba(79, 126, 248, 0.3); }
+.exchange-badge-sell { background: rgba(46, 207, 122, 0.15); color: #a8f0c8; border-color: rgba(46, 207, 122, 0.3); }

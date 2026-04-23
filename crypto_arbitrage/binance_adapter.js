@@ -69,4 +69,10 @@ export class BinanceBapiAdapter extends ExchangeAdapterBase {
   async getSellDepth(fiat, asset) {
     return await this._queryP2P(fiat, asset, 'SELL');
   }
+
+  getFee(side) {
+    // Typical Binance P2P Taker fee is 0%, Maker varies by region.
+    // We'll use 0.001 (0.1%) as a conservative placeholder or configurable value.
+    return 0.001;
+  }
 }

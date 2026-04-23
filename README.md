@@ -22,7 +22,9 @@ This application functions as a comprehensive monitoring dashboard and automated
     *   **ROI & Net Profit Calculators:** Set strict financial triggers for alerts.
     *   **Z-Score Anomaly Detection:** Identifies "too good to be true" deals based on historical statistical baselines.
 *   **Market Depth Analysis:** Tracks tradable volume and liquidity to ensure opportunities are actionable.
-*   **Multi-Region Scanner:** Simultaneously monitors multiple fiat pairs to find the highest global spread.
+*   **Cross-Exchange Engine:** Simultaneously evaluates multiple P2P exchanges (Binance, Airtm, El Dorado) to find the most profitable route.
+*   **Dynamic Fee Aggregation:** Automatically calculates net ROI by summing source and destination platform fees.
+*   **Combinatorial Arbitrage:** Analyzes all possible combinations of source/destination exchanges and fiat currencies.
 *   **Privacy & Security:** Runs entirely locally. No external APIs except for the target marketplaces. Native Node.js implementation without heavy frameworks like Express.
 
 ## Tech Stack

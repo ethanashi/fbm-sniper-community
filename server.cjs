@@ -23,6 +23,7 @@ const SHARED_FOUND_FILES = {
   vinted: path.join(DATA_DIR, "vinted", "found.ndjson"),
   mercadolibre: path.join(DATA_DIR, "mercadolibre", "found.ndjson"),
   amazon: path.join(DATA_DIR, "amazon", "found.ndjson"),
+  arbitrage: path.join(DATA_DIR, "arbitrage", "found.ndjson"),
 };
 const REJECTED_HEADERS = "timestamp,title,query,target_id,target_label,target_group,listing_price,reason,url,make,model,year,title_status\n";
 

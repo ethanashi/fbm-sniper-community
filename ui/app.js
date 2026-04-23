@@ -929,6 +929,14 @@ function updateArbitrageChart(deal) {
             <div class="stat-label">Best Global Spread</div>
             <div class="stat-value" style="color: var(--accent);">${best.roi.toFixed(2)}%</div>
           </div>
+          <div style="text-align: center">
+            <div class="stat-label">Top Route</div>
+            <div class="stat-value" style="font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; justify-content: center;">
+              <span class="exchange-badge exchange-badge-buy">${best.source_exchange || 'binance'}</span>
+              <span style="opacity: 0.5">→</span>
+              <span class="exchange-badge exchange-badge-sell">${best.destination_exchange || 'binance'}</span>
+            </div>
+          </div>
           <div style="text-align: right">
             <div class="stat-label">Currency Path</div>
             <div class="stat-value" style="font-size: 1.2rem;">${sharedConfig.FIAT_ORIGIN || 'Origin'} → ${best.fiat}</div>
@@ -942,6 +950,30 @@ function updateArbitrageChart(deal) {
           </div>
         </div>
       `;
+    }
+
+    // Update Top 5 Ranking
+    const rankingContainer = document.getElementById('arbitrage-ranking-container');
+    if (rankingContainer) {
+      const top5 = sorted.slice(0, 5);
+      const maxRoi = Math.max(...top5.map(r => r.roi), 1);
+
+      rankingContainer.innerHTML = top5.map(r => `
+        <div class="arbitrage-ranking-item">
+          <div class="ranking-item-top">
+            <div class="ranking-route">
+              <span class="exchange-badge exchange-badge-buy">${r.source_exchange}</span>
+              <span style="opacity: 0.5; margin: 0 0.2rem">→</span>
+              <span class="exchange-badge exchange-badge-sell">${r.destination_exchange}</span>
+              <span style="margin-left: 0.5rem; opacity: 0.8">${sharedConfig.FIAT_ORIGIN || 'Origin'} → ${r.fiat}</span>
+            </div>
+            <div class="ranking-roi">${r.roi.toFixed(2)}%</div>
+          </div>
+          <div class="ranking-bar-bg">
+            <div class="ranking-bar-fill" style="width: ${(r.roi / maxRoi * 100).toFixed(0)}%"></div>
+          </div>
+        </div>
+      `).join('');
     }
   }
 
@@ -1022,6 +1054,17 @@ function renderMarketplaceTab(platform) {
       <div class="sniper-body">
         ${platform === 'arbitrage' ? `
           <div id="arbitrage-best-summary" class="arbitrage-best-summary" style="margin-bottom: 1rem;"></div>
+
+          <section class="sniper-pane arbitrage-ranking-pane" style="margin-bottom: 1rem;">
+            <div class="sniper-pane-head">
+              <h3>Top 5 Profitable Routes</h3>
+              <span class="live-pill">Live Cross-Exchange Ranking</span>
+            </div>
+            <div id="arbitrage-ranking-container" class="arbitrage-ranking-container" style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+              <div class="sniper-empty">Waiting for data...</div>
+            </div>
+          </section>
+
           <section class="sniper-pane sniper-chart">
             <div class="sniper-pane-head">
               <h3>Market Performance</h3>
@@ -1808,6 +1851,14 @@ function buildSharedDealCard(platform, deal) {
             <strong>${formatPrice(price, currency)}</strong>
           </div>
           ${platform === 'arbitrage' ? `
+            <div class="market-metric">
+              <span class="market-metric-label">Route</span>
+              <div style="display: flex; align-items: center; gap: 0.3rem; margin-top: 0.2rem;">
+                <span class="exchange-badge exchange-badge-buy">${deal.source_exchange || 'binance'}</span>
+                <span style="opacity: 0.5">→</span>
+                <span class="exchange-badge exchange-badge-sell">${deal.destination_exchange || 'binance'}</span>
+              </div>
+            </div>
             <div class="market-metric">
               <span class="market-metric-label">Volume</span>
               <strong>${deal?.volume ? formatNumber(deal.volume) : '–'} USDT</strong>

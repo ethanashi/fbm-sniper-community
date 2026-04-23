@@ -9,11 +9,7 @@ export const ARBITRAGE_CONFIG = {
   // Trigger condition: Net ROI threshold in percentage
   MIN_ROI_PCT: 2.0,
 
-  // P2P Commissions (e.g., 0.1% = 0.001)
-  COMMISSION_FEE: 0.001,
-
   // Reference exchange rate to USD for cross-currency calculations
-  // In a production system, these should be fetched via API.
   REFERENCE_RATES: {
     'COP': 3900,
     'ARS': 1200,
@@ -24,4 +20,8 @@ export const ARBITRAGE_CONFIG = {
   },
 
   POLL_INTERVAL_MS: 60 * 1000,
+
+  // Phase 7: Cross-Platform Support
+  SOURCE_EXCHANGES: ['binance', 'eldorado'],
+  DESTINATION_EXCHANGES: ['binance', 'airtm', 'eldorado']
 };
