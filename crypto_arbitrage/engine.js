@@ -21,11 +21,11 @@ export class ArbitrageEngine {
   }
 
   /**
-   * Calculate Net Spread and ROI.
+   * Calculate Net Spread and ROI for a specific destination.
    */
-  calculateSpread(buyPriceFiat, sellPriceFiat) {
+  calculateSpread(buyPriceFiat, sellPriceFiat, destFiat) {
     const buyPriceUSD = this._convertToUSD(buyPriceFiat, this.config.FIAT_ORIGIN);
-    const sellPriceUSD = this._convertToUSD(sellPriceFiat, this.config.FIAT_DESTINO);
+    const sellPriceUSD = this._convertToUSD(sellPriceFiat, destFiat);
 
     // Profit = (Sell Price in USD) - (Buy Price in USD) - Commissions
     const commission = buyPriceUSD * this.config.COMMISSION_FEE;
@@ -40,45 +40,79 @@ export class ArbitrageEngine {
    */
   async checkOpportunities() {
     try {
-      console.log(chalk.blue(`[arbitrage] Checking ${this.config.FIAT_ORIGIN} -> ${this.config.FIAT_DESTINO}...`));
+      console.log(chalk.blue(`[arbitrage] Scanning regions from ${this.config.FIAT_ORIGIN}...`));
 
-      const buyPrice = await this.adapter.getBuyPrice(this.config.FIAT_ORIGIN, this.config.CRYPTO_ASSET);
-      const sellPrice = await this.adapter.getSellPrice(this.config.FIAT_DESTINO, this.config.CRYPTO_ASSET);
+      const buyDepth = await this.adapter.getBuyDepth(this.config.FIAT_ORIGIN, this.config.CRYPTO_ASSET);
+      const results = [];
 
-      const { buyPriceUSD, sellPriceUSD, netProfit, roi } = this.calculateSpread(buyPrice, sellPrice);
+      // Concurrently query all destinations
+      await Promise.all(this.config.FIAT_DESTINOS.map(async (destFiat) => {
+        try {
+          // Add jitter to avoid rate limits
+          await new Promise(r => setTimeout(r, Math.random() * 2000));
 
-      console.log(chalk.gray(`  Buy ${this.config.FIAT_ORIGIN}: ${buyPrice} ($${buyPriceUSD.toFixed(3)})`));
-      console.log(chalk.gray(`  Sell ${this.config.FIAT_DESTINO}: ${sellPrice} ($${sellPriceUSD.toFixed(3)})`));
-      console.log(chalk.cyan(`  ROI: ${roi.toFixed(2)}% | Profit: $${netProfit.toFixed(3)} per USDT`));
+          const sellDepth = await this.adapter.getSellDepth(destFiat, this.config.CRYPTO_ASSET);
+          const { buyPriceUSD, sellPriceUSD, netProfit, roi } = this.calculateSpread(buyDepth.price, sellDepth.price, destFiat);
 
-      if (roi >= this.config.MIN_ROI_PCT) {
+          const tradableVolume = Math.min(buyDepth.volume, sellDepth.volume);
+          const estimatedMaxProfit = netProfit * tradableVolume;
+
+          results.push({
+            fiat: destFiat,
+            buyPrice: buyDepth.price,
+            sellPrice: sellDepth.price,
+            buyPriceUSD,
+            sellPriceUSD,
+            netProfit,
+            roi,
+            volume: tradableVolume,
+            maxProfit: estimatedMaxProfit,
+            timestamp: new Date().toISOString()
+          });
+
+          console.log(chalk.gray(`  ${this.config.FIAT_ORIGIN} -> ${destFiat} | ROI: ${roi.toFixed(2)}% | Vol: ${tradableVolume}`));
+        } catch (err) {
+          console.error(chalk.red(`  [arbitrage] Error scanning ${destFiat}: ${err.message}`));
+        }
+      }));
+
+      if (results.length === 0) return;
+
+      // Sort by ROI descending
+      results.sort((a, b) => b.roi - a.roi);
+      const best = results[0];
+
+      if (best.roi >= this.config.MIN_ROI_PCT) {
         const msg = `🚀 P2P ARBITRAGE OPPORTUNITY!\n` +
-                    `ROI: ${roi.toFixed(2)}%\n` +
-                    `Pair: ${this.config.FIAT_ORIGIN} -> ${this.config.FIAT_DESTINO}\n` +
-                    `Spread: $${netProfit.toFixed(3)} / USDT\n` +
-                    `Buy ${this.config.FIAT_ORIGIN}: ${buyPrice}\n` +
-                    `Sell ${this.config.FIAT_DESTINO}: ${sellPrice}`;
+                    `Best ROI: ${best.roi.toFixed(2)}% (${best.fiat})\n` +
+                    `Pair: ${this.config.FIAT_ORIGIN} -> ${best.fiat}\n` +
+                    `Spread: $${best.netProfit.toFixed(3)} / USDT\n` +
+                    `Tradable Volume: ${best.volume} USDT`;
 
         console.log(chalk.green(msg));
 
-        // Reuse project notification system
+        // Notify best opportunity
         await notify({
-          title: "P2P Arbitrage Opportunity",
+          title: `P2P Arbitrage: ${best.fiat}`,
           platform: "arbitrage",
           grade: "A",
-          score: Math.round(roi * 10),
+          score: Math.round(best.roi * 10),
           reasons: [
-            `Spread: $${netProfit.toFixed(3)} USD`,
-            `ROI: ${roi.toFixed(2)}%`,
-            `Path: ${this.config.FIAT_ORIGIN} -> ${this.config.FIAT_DESTINO}`
+            `Spread: $${best.netProfit.toFixed(3)} USD`,
+            `ROI: ${best.roi.toFixed(2)}%`,
+            `Path: ${this.config.FIAT_ORIGIN} -> ${best.fiat}`,
+            `Volume: ${best.volume} USDT`
           ],
-          listing_price: buyPrice,
+          listing_price: best.buyPrice,
+          volume: best.volume,
+          max_profit: best.maxProfit,
           url: "https://p2p.binance.com/",
-          timestamp: new Date().toISOString()
+          timestamp: best.timestamp,
+          all_results: results // Pass all results for UI
         });
       }
     } catch (err) {
-      console.error(chalk.red(`[arbitrage] Error: ${err.message}`));
+      console.error(chalk.red(`[arbitrage] Critical Error: ${err.message}`));
     }
   }
 

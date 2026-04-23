@@ -52,15 +52,21 @@ export class BinanceBapiAdapter extends ExchangeAdapterBase {
       throw new Error(`No Binance P2P ads found for ${fiat}/${asset} ${side}`);
     }
 
-    // Best price is the first one in the sorted list
-    return parseFloat(ads[0].adv.price);
+    // Best price and volume from the first advertiser
+    const ad = ads[0].adv;
+    return {
+      price: parseFloat(ad.price),
+      volume: parseFloat(ad.tradableQuantity),
+      minLimit: parseFloat(ad.minSingleTransAmount),
+      maxLimit: parseFloat(ad.maxSingleTransAmount)
+    };
   }
 
-  async getBuyPrice(fiat, asset) {
+  async getBuyDepth(fiat, asset) {
     return await this._queryP2P(fiat, asset, 'BUY');
   }
 
-  async getSellPrice(fiat, asset) {
+  async getSellDepth(fiat, asset) {
     return await this._queryP2P(fiat, asset, 'SELL');
   }
 }

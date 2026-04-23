@@ -4,22 +4,22 @@
  */
 export class ExchangeAdapterBase {
   /**
-   * Get the best price to BUY an asset with a specific fiat currency.
-   * @param {string} fiat - The fiat currency (e.g., 'COP', 'USD').
-   * @param {string} asset - The crypto asset (e.g., 'USDT').
-   * @returns {Promise<number>} - The unit price.
+   * Get depth data for BUYING an asset with a specific fiat currency.
+   * @param {string} fiat - The fiat currency.
+   * @param {string} asset - The crypto asset.
+   * @returns {Promise<{price: number, volume: number, minLimit: number, maxLimit: number}>}
    */
-  async getBuyPrice(fiat, asset) {
-    throw new Error('getBuyPrice() must be implemented by the adapter.');
+  async getBuyDepth(fiat, asset) {
+    throw new Error('getBuyDepth() must be implemented by the adapter.');
   }
 
   /**
-   * Get the best price to SELL an asset for a specific fiat currency.
-   * @param {string} fiat - The fiat currency (e.g., 'ARS', 'VES').
-   * @param {string} asset - The crypto asset (e.g., 'USDT').
-   * @returns {Promise<number>} - The unit price.
+   * Get depth data for SELLING an asset for a specific fiat currency.
+   * @param {string} fiat - The fiat currency.
+   * @param {string} asset - The crypto asset.
+   * @returns {Promise<{price: number, volume: number, minLimit: number, maxLimit: number}>}
    */
-  async getSellPrice(fiat, asset) {
-    throw new Error('getSellPrice() must be implemented by the adapter.');
+  async getSellDepth(fiat, asset) {
+    throw new Error('getSellDepth() must be implemented by the adapter.');
   }
 }

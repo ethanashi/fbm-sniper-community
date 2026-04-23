@@ -3,7 +3,7 @@
  */
 export const ARBITRAGE_CONFIG = {
   FIAT_ORIGIN: process.env.FIAT_ORIGIN || 'COP',
-  FIAT_DESTINO: process.env.FIAT_DESTINO || 'ARS',
+  FIAT_DESTINOS: (process.env.FIAT_DESTINOS || 'ARS,VES,MXN,BRL').split(','),
   CRYPTO_ASSET: 'USDT',
 
   // Trigger condition: Net ROI threshold in percentage
@@ -16,7 +16,10 @@ export const ARBITRAGE_CONFIG = {
   // In a production system, these should be fetched via API.
   REFERENCE_RATES: {
     'COP': 3900,
-    'ARS': 850,
+    'ARS': 1200,
+    'VES': 36.5,
+    'MXN': 17.5,
+    'BRL': 5.2,
     'USD': 1
   },
 

@@ -95,6 +95,10 @@ const PLATFORM_META = {
   },
 };
 
+let arbitrageChart = null;
+let arbitrageSpreadSeries = {}; // Map of fiat -> series
+let arbitrageVolumeSeries = null;
+
 const FOUND_LISTINGS_META = [
   {
     id: "cars",
@@ -305,6 +309,9 @@ function setActiveTopTab(tab) {
     loadSharedFound(tab);
     renderMarketplaceTab(tab);
     flushSniperTerminal(PLATFORM_META[tab].process);
+    if (tab === 'arbitrage') {
+      setTimeout(initArbitrageChart, 100);
+    }
   }
 }
 
@@ -400,6 +407,10 @@ function connectWS() {
       clearTimeout(sharedReloadTimers[msg.platform]);
       sharedReloadTimers[msg.platform] = setTimeout(() => {
         loadSharedFound(msg.platform);
+        // Update chart if it's arbitrage
+        if (msg.platform === 'arbitrage' && sharedFoundDeals.arbitrage.length) {
+          updateArbitrageChart(sharedFoundDeals.arbitrage[0]);
+        }
       }, 250);
     }
   };
@@ -845,6 +856,115 @@ function renderAllMarketplaceTabs() {
   renderSharedWatchlistTab();
 }
 
+function initArbitrageChart() {
+  const container = document.getElementById('arbitrage-chart-container');
+  if (!container || arbitrageChart) return;
+
+  arbitrageChart = LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: 300,
+    layout: {
+      backgroundColor: '#1e222d',
+      textColor: '#d1d4dc',
+    },
+    grid: {
+      vertLines: { color: '#334158' },
+      horzLines: { color: '#334158' },
+    },
+    timeScale: {
+      timeVisible: true,
+      secondsVisible: true,
+    },
+  });
+
+  const colors = ['#2196f3', '#ff9800', '#4caf50', '#f44336', '#9c27b0'];
+  const destinations = (sharedConfig.filters?.arbitrageDestinations || 'ARS,VES,MXN,BRL').split(',');
+
+  destinations.forEach((fiat, i) => {
+    arbitrageSpreadSeries[fiat] = arbitrageChart.addLineSeries({
+      color: colors[i % colors.length],
+      lineWidth: 2,
+      title: `${fiat} ROI%`,
+    });
+  });
+
+  arbitrageVolumeSeries = arbitrageChart.addHistogramSeries({
+    color: '#26a69a',
+    priceFormat: { type: 'volume' },
+    priceScaleId: '', // Overlay on the same scale or different
+    title: 'Volume (USDT)',
+  });
+
+  arbitrageVolumeSeries.priceScale().applyOptions({
+    scaleMargins: {
+      top: 0.8,
+      bottom: 0,
+    },
+  });
+
+  window.addEventListener('resize', () => {
+    arbitrageChart.resize(container.clientWidth, 300);
+  });
+}
+
+function updateArbitrageChart(deal) {
+  if (deal.all_results) {
+    deal.all_results.forEach(res => {
+      if (arbitrageSpreadSeries[res.fiat]) {
+        arbitrageSpreadSeries[res.fiat].update({
+          time,
+          value: res.roi
+        });
+      }
+    });
+
+    // Update Top Summary
+    const sorted = [...deal.all_results].sort((a,b) => b.roi - a.roi);
+    const best = sorted[0];
+    const summary = document.getElementById('arbitrage-best-summary');
+    if (summary) {
+      summary.innerHTML = `
+        <div class="stat-card" style="background: var(--bg-surface); border-left: 4px solid var(--accent); display: flex; justify-content: space-between; align-items: center; padding: 1rem;">
+          <div>
+            <div class="stat-label">Best Global Spread</div>
+            <div class="stat-value" style="color: var(--accent);">${best.roi.toFixed(2)}%</div>
+          </div>
+          <div style="text-align: right">
+            <div class="stat-label">Currency Path</div>
+            <div class="stat-value" style="font-size: 1.2rem;">${sharedConfig.FIAT_ORIGIN || 'Origin'} → ${best.fiat}</div>
+          </div>
+          <div>
+            <div class="stat-label">Tradable Volume</div>
+            <div class="stat-value">${formatNumber(best.volume)} USDT</div>
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" onclick="openInBrowser('https://p2p.binance.com/')">Trade Now</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  if (!arbitrageVolumeSeries) return;
+  const time = Math.floor(new Date(deal.timestamp).getTime() / 1000);
+
+  if (deal.all_results) {
+    deal.all_results.forEach(res => {
+      if (arbitrageSpreadSeries[res.fiat]) {
+        arbitrageSpreadSeries[res.fiat].update({
+          time,
+          value: res.roi
+        });
+      }
+    });
+  }
+
+  arbitrageVolumeSeries.update({
+    time,
+    value: deal.volume || 0,
+  });
+}
+
 function renderMarketplaceTab(platform) {
   const mount = document.getElementById(`${platform}Panel`);
   if (!mount) return;
@@ -900,6 +1020,16 @@ function renderMarketplaceTab(platform) {
       </div>
 
       <div class="sniper-body">
+        ${platform === 'arbitrage' ? `
+          <div id="arbitrage-best-summary" class="arbitrage-best-summary" style="margin-bottom: 1rem;"></div>
+          <section class="sniper-pane sniper-chart">
+            <div class="sniper-pane-head">
+              <h3>Market Performance</h3>
+              <span class="live-pill">Real-time Multi-Region ROI & Global Volume</span>
+            </div>
+            <div id="arbitrage-chart-container" class="arbitrage-chart-container" style="height: 300px; margin: 1rem 0; background: #1e222d; border-radius: 8px;"></div>
+          </section>
+        ` : ''}
         <section class="sniper-pane sniper-deals">
           <div class="sniper-pane-head">
             <h3>Live Deals</h3>
@@ -1360,6 +1490,10 @@ function renderSharedSettings() {
             <label for="sharedGlobalPriorityKeywords">Global Whitelist (comma separated)</label>
             <textarea id="sharedGlobalPriorityKeywords" class="quick-input quick-textarea" rows="2">${escHtml((config.filters?.globalPriorityKeywords || []).join(", "))}</textarea>
           </div>
+          <div class="form-field form-field-wide">
+            <label for="sharedArbitrageDestinations">Arbitrage Destinations (comma separated fiat codes)</label>
+            <input id="sharedArbitrageDestinations" class="quick-input" type="text" value="${escAttr(config.filters?.arbitrageDestinations ?? 'ARS,VES,MXN,BRL')}" />
+          </div>
           ${Object.keys(PLATFORM_META).map((platform) => buildBotFieldset(platform, config.bots[platform] || {})).join("")}
         </form>
       </section>
@@ -1470,6 +1604,7 @@ function readSharedSettingsForm() {
       zScoreEnabled: !!document.getElementById("sharedZScoreEnabled")?.checked,
       globalMustAvoid: (document.getElementById("sharedGlobalMustAvoid")?.value || "").split(",").map(s => s.trim()).filter(Boolean),
       globalPriorityKeywords: (document.getElementById("sharedGlobalPriorityKeywords")?.value || "").split(",").map(s => s.trim()).filter(Boolean),
+      arbitrageDestinations: document.getElementById("sharedArbitrageDestinations")?.value.trim() || 'ARS,VES,MXN,BRL',
     },
     bots: {
       facebook: {
@@ -1598,7 +1733,7 @@ function foundPlatformBadgeClass(platform) {
   if (platform === "vinted") return "badge-platform-vinted";
   if (platform === "mercadolibre") return "badge-platform-mercadolibre";
   if (platform === "amazon") return "badge-platform-amazon";
-  if (platform === "arbitrage") return "badge-platform-cars"; // Reuse a color
+  if (platform === "arbitrage") return "badge-platform-vinted";
   return "badge-platform-facebook";
 }
 
@@ -1672,10 +1807,21 @@ function buildSharedDealCard(platform, deal) {
             <span class="market-metric-label">Listed</span>
             <strong>${formatPrice(price, currency)}</strong>
           </div>
-          <div class="market-metric">
-            <span class="market-metric-label">Score</span>
-            <strong>${deal?.score != null ? escHtml(String(deal.score)) : "–"}</strong>
-          </div>
+          ${platform === 'arbitrage' ? `
+            <div class="market-metric">
+              <span class="market-metric-label">Volume</span>
+              <strong>${deal?.volume ? formatNumber(deal.volume) : '–'} USDT</strong>
+            </div>
+            <div class="market-metric">
+              <span class="market-metric-label">Max Profit</span>
+              <strong class="good">${deal?.max_profit ? formatMoney(deal.max_profit) : '–'}</strong>
+            </div>
+          ` : `
+            <div class="market-metric">
+              <span class="market-metric-label">Score</span>
+              <strong>${deal?.score != null ? escHtml(String(deal.score)) : "–"}</strong>
+            </div>
+          `}
           <div class="market-metric">
             <span class="market-metric-label">Target</span>
             <strong>${escHtml(targetLabel)}</strong>

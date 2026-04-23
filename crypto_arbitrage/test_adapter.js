@@ -6,12 +6,12 @@ async function testAdapter() {
     console.log('Fetching prices from Binance P2P...');
 
     // Test COP Buy
-    const buyPrice = await adapter.getBuyPrice('COP', 'USDT');
-    console.log(`COP Buy Price: ${buyPrice}`);
+    const buyDepth = await adapter.getBuyDepth('COP', 'USDT');
+    console.log(`COP Buy Price: ${buyDepth.price}`);
 
     // Test ARS Sell
-    const sellPrice = await adapter.getSellPrice('ARS', 'USDT');
-    console.log(`ARS Sell Price: ${sellPrice}`);
+    const sellDepth = await adapter.getSellDepth('ARS', 'USDT');
+    console.log(`ARS Sell Price: ${sellDepth.price}`);
 
     console.log('SUCCESS: Prices fetched successfully.');
   } catch (err) {
