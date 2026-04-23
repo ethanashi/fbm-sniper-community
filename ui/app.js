@@ -20,6 +20,7 @@ const sharedFoundDeals = {
   mercadolibre: [],
   amazon: [],
   arbitrage: [],
+  anomalia: [],
 };
 const foundListingsLoaded = {
   cars: false,
@@ -29,6 +30,7 @@ const foundListingsLoaded = {
   mercadolibre: false,
   amazon: false,
   arbitrage: false,
+  anomalia: false,
 };
 // In-memory grade filter per platform. Set of selected letter grades; empty Set = show all.
 const sharedGradeFilter = {
@@ -38,6 +40,7 @@ const sharedGradeFilter = {
   mercadolibre: new Set(),
   amazon: new Set(),
   arbitrage: new Set(),
+  anomalia: new Set(),
 };
 const SHARED_GRADE_LETTERS = ["A", "B", "C", "D", "F"];
 let currentTopTab = "cars";
@@ -56,6 +59,7 @@ const sharedReloadTimers = {
   mercadolibre: null,
   amazon: null,
   arbitrage: null,
+  anomalia: null,
 };
 const terminalBuffers = {};
 let activeDealModal = null;
@@ -92,12 +96,23 @@ const PLATFORM_META = {
     label: "Arbitrage",
     process: "arbitrage-engine",
     description: "P2P Crypto Arbitrage (Currency Dropshipping) between configured fiat pairs using Binance BAPI.",
+    profile_id: "PRINCIPAL"
+  },
+  anomalia: {
+    label: "Radar Inverso",
+    process: "arbitrage-engine",
+    description: "Anomalous market scenarios or reverse routes (buying ARS/VES and selling COP).",
+    profile_id: "ANOMALIA"
   },
 };
 
 let arbitrageChart = null;
 let arbitrageSpreadSeries = {}; // Map of fiat -> series
 let arbitrageVolumeSeries = null;
+
+let anomaliaChart = null;
+let anomaliaSpreadSeries = {};
+let anomaliaVolumeSeries = null;
 
 const FOUND_LISTINGS_META = [
   {
@@ -175,6 +190,7 @@ const DEFAULT_SHARED_CONFIG = {
     mercadolibre: { pollIntervalSec: 60, siteId: "MLA", accessToken: "" },
     amazon: { pollIntervalSec: 300, country: "US" },
     arbitrage: { pollIntervalSec: 60 },
+    anomalia: { pollIntervalSec: 60 },
   },
 };
 
@@ -312,6 +328,10 @@ function setActiveTopTab(tab) {
     if (tab === 'arbitrage') {
       setTimeout(initArbitrageChart, 100);
     }
+    if (tab === 'anomalia') {
+      loadSharedFound('anomalia');
+      setTimeout(() => initArbitrageChart('anomalia'), 100);
+    }
   }
 }
 
@@ -407,9 +427,18 @@ function connectWS() {
       clearTimeout(sharedReloadTimers[msg.platform]);
       sharedReloadTimers[msg.platform] = setTimeout(() => {
         loadSharedFound(msg.platform);
-        // Update chart if it's arbitrage
-        if (msg.platform === 'arbitrage' && sharedFoundDeals.arbitrage.length) {
-          updateArbitrageChart(sharedFoundDeals.arbitrage[0]);
+        // Update chart if it's arbitrage or anomalia
+        if (msg.platform === 'arbitrage') {
+          // Filter latest arbitrage by profile_id
+          const principal = sharedFoundDeals.arbitrage.find(d => d.profile_id === 'PRINCIPAL');
+          if (principal) updateArbitrageChart(principal, 'arbitrage');
+
+          const anomalia = sharedFoundDeals.arbitrage.find(d => d.profile_id === 'ANOMALIA');
+          if (anomalia) {
+             sharedFoundDeals.anomalia = sharedFoundDeals.arbitrage.filter(d => d.profile_id === 'ANOMALIA');
+             updateArbitrageChart(anomalia, 'anomalia');
+             renderMarketplaceTab('anomalia');
+          }
         }
       }, 250);
     }
@@ -609,6 +638,10 @@ function normalizeSharedConfig(config = {}) {
         ...DEFAULT_SHARED_CONFIG.bots.arbitrage,
         ...(((config && config.bots) || {}).arbitrage || {}),
       },
+      anomalia: {
+        ...DEFAULT_SHARED_CONFIG.bots.anomalia,
+        ...(((config && config.bots) || {}).anomalia || {}),
+      },
     },
   };
 }
@@ -670,7 +703,17 @@ async function loadSharedSettings() {
 async function loadSharedFound(platform) {
   if (!PLATFORM_META[platform]) return;
   try {
-    sharedFoundDeals[platform] = await fetch(`/api/shared/found/${platform}`).then((response) => response.json());
+    const apiPlatform = platform === 'anomalia' ? 'arbitrage' : platform;
+    let deals = await fetch(`/api/shared/found/${apiPlatform}`).then((response) => response.json());
+
+    if (platform === 'arbitrage') {
+      sharedFoundDeals.arbitrage = deals.filter(d => d.profile_id === 'PRINCIPAL' || !d.profile_id);
+    } else if (platform === 'anomalia') {
+      sharedFoundDeals.anomalia = deals.filter(d => d.profile_id === 'ANOMALIA');
+    } else {
+      sharedFoundDeals[platform] = deals;
+    }
+
     foundListingsLoaded[platform] = true;
     renderMarketplaceTab(platform);
   } catch {
@@ -856,11 +899,15 @@ function renderAllMarketplaceTabs() {
   renderSharedWatchlistTab();
 }
 
-function initArbitrageChart() {
-  const container = document.getElementById('arbitrage-chart-container');
-  if (!container || arbitrageChart) return;
+function initArbitrageChart(platform = 'arbitrage') {
+  const containerId = `${platform}-chart-container`;
+  const container = document.getElementById(containerId);
+  if (!container) return;
 
-  arbitrageChart = LightweightCharts.createChart(container, {
+  if (platform === 'arbitrage' && arbitrageChart) return;
+  if (platform === 'anomalia' && anomaliaChart) return;
+
+  const chart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
     height: 300,
     layout: {
@@ -878,40 +925,59 @@ function initArbitrageChart() {
   });
 
   const colors = ['#2196f3', '#ff9800', '#4caf50', '#f44336', '#9c27b0'];
-  const destinations = (sharedConfig.filters?.arbitrageDestinations || 'ARS,VES,MXN,BRL').split(',');
+  const spreadSeries = {};
+
+  let destinations = (sharedConfig.filters?.arbitrageDestinations || 'ARS,VES,MXN,BRL').split(',');
+  if (platform === 'anomalia') destinations = ['COP'];
 
   destinations.forEach((fiat, i) => {
-    arbitrageSpreadSeries[fiat] = arbitrageChart.addLineSeries({
+    spreadSeries[fiat] = chart.addLineSeries({
       color: colors[i % colors.length],
       lineWidth: 2,
       title: `${fiat} ROI%`,
     });
   });
 
-  arbitrageVolumeSeries = arbitrageChart.addHistogramSeries({
+  const volumeSeries = chart.addHistogramSeries({
     color: '#26a69a',
     priceFormat: { type: 'volume' },
-    priceScaleId: '', // Overlay on the same scale or different
+    priceScaleId: '',
     title: 'Volume (USDT)',
   });
 
-  arbitrageVolumeSeries.priceScale().applyOptions({
+  volumeSeries.priceScale().applyOptions({
     scaleMargins: {
       top: 0.8,
       bottom: 0,
     },
   });
 
+  if (platform === 'arbitrage') {
+    arbitrageChart = chart;
+    arbitrageSpreadSeries = spreadSeries;
+    arbitrageVolumeSeries = volumeSeries;
+  } else {
+    anomaliaChart = chart;
+    anomaliaSpreadSeries = spreadSeries;
+    anomaliaVolumeSeries = volumeSeries;
+  }
+
   window.addEventListener('resize', () => {
-    arbitrageChart.resize(container.clientWidth, 300);
+    chart.resize(container.clientWidth, 300);
   });
 }
 
-function updateArbitrageChart(deal) {
+function updateArbitrageChart(deal, platform = 'arbitrage') {
+  const chartSpreadSeries = platform === 'arbitrage' ? arbitrageSpreadSeries : anomaliaSpreadSeries;
+  const chartVolumeSeries = platform === 'arbitrage' ? arbitrageVolumeSeries : anomaliaVolumeSeries;
+
+  if (!chartVolumeSeries) return;
+  const time = Math.floor(new Date(deal.timestamp).getTime() / 1000);
+
   if (deal.all_results) {
     deal.all_results.forEach(res => {
-      if (arbitrageSpreadSeries[res.fiat]) {
-        arbitrageSpreadSeries[res.fiat].update({
+      if (chartSpreadSeries[res.fiat]) {
+        chartSpreadSeries[res.fiat].update({
           time,
           value: res.roi
         });
@@ -921,7 +987,7 @@ function updateArbitrageChart(deal) {
     // Update Top Summary
     const sorted = [...deal.all_results].sort((a,b) => b.roi - a.roi);
     const best = sorted[0];
-    const summary = document.getElementById('arbitrage-best-summary');
+    const summary = document.getElementById(`${platform}-best-summary`);
     if (summary) {
       summary.innerHTML = `
         <div class="stat-card" style="background: var(--bg-surface); border-left: 4px solid var(--accent); display: flex; justify-content: space-between; align-items: center; padding: 1rem;">
@@ -939,7 +1005,7 @@ function updateArbitrageChart(deal) {
           </div>
           <div style="text-align: right">
             <div class="stat-label">Currency Path</div>
-            <div class="stat-value" style="font-size: 1.2rem;">${sharedConfig.FIAT_ORIGIN || 'Origin'} → ${best.fiat}</div>
+            <div class="stat-value" style="font-size: 1.2rem;">${best.fiat_origin || 'Origin'} → ${best.fiat}</div>
           </div>
           <div>
             <div class="stat-label">Tradable Volume</div>
@@ -953,7 +1019,7 @@ function updateArbitrageChart(deal) {
     }
 
     // Update Top 5 Ranking
-    const rankingContainer = document.getElementById('arbitrage-ranking-container');
+    const rankingContainer = document.getElementById(`${platform}-ranking-container`);
     if (rankingContainer) {
       const top5 = sorted.slice(0, 5);
       const maxRoi = Math.max(...top5.map(r => r.roi), 1);
@@ -965,7 +1031,7 @@ function updateArbitrageChart(deal) {
               <span class="exchange-badge exchange-badge-buy">${r.source_exchange}</span>
               <span style="opacity: 0.5; margin: 0 0.2rem">→</span>
               <span class="exchange-badge exchange-badge-sell">${r.destination_exchange}</span>
-              <span style="margin-left: 0.5rem; opacity: 0.8">${sharedConfig.FIAT_ORIGIN || 'Origin'} → ${r.fiat}</span>
+              <span style="margin-left: 0.5rem; opacity: 0.8">${r.fiat_origin || 'Origin'} → ${r.fiat}</span>
             </div>
             <div class="ranking-roi">${r.roi.toFixed(2)}%</div>
           </div>
@@ -977,21 +1043,7 @@ function updateArbitrageChart(deal) {
     }
   }
 
-  if (!arbitrageVolumeSeries) return;
-  const time = Math.floor(new Date(deal.timestamp).getTime() / 1000);
-
-  if (deal.all_results) {
-    deal.all_results.forEach(res => {
-      if (arbitrageSpreadSeries[res.fiat]) {
-        arbitrageSpreadSeries[res.fiat].update({
-          time,
-          value: res.roi
-        });
-      }
-    });
-  }
-
-  arbitrageVolumeSeries.update({
+  chartVolumeSeries.update({
     time,
     value: deal.volume || 0,
   });
@@ -1052,15 +1104,15 @@ function renderMarketplaceTab(platform) {
       </div>
 
       <div class="sniper-body">
-        ${platform === 'arbitrage' ? `
-          <div id="arbitrage-best-summary" class="arbitrage-best-summary" style="margin-bottom: 1rem;"></div>
+        ${(platform === 'arbitrage' || platform === 'anomalia') ? `
+          <div id="${platform}-best-summary" class="arbitrage-best-summary" style="margin-bottom: 1rem;"></div>
 
           <section class="sniper-pane arbitrage-ranking-pane" style="margin-bottom: 1rem;">
             <div class="sniper-pane-head">
               <h3>Top 5 Profitable Routes</h3>
               <span class="live-pill">Live Cross-Exchange Ranking</span>
             </div>
-            <div id="arbitrage-ranking-container" class="arbitrage-ranking-container" style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+            <div id="${platform}-ranking-container" class="arbitrage-ranking-container" style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
               <div class="sniper-empty">Waiting for data...</div>
             </div>
           </section>
@@ -1070,7 +1122,7 @@ function renderMarketplaceTab(platform) {
               <h3>Market Performance</h3>
               <span class="live-pill">Real-time Multi-Region ROI & Global Volume</span>
             </div>
-            <div id="arbitrage-chart-container" class="arbitrage-chart-container" style="height: 300px; margin: 1rem 0; background: #1e222d; border-radius: 8px;"></div>
+            <div id="${platform}-chart-container" class="arbitrage-chart-container" style="height: 300px; margin: 1rem 0; background: #1e222d; border-radius: 8px;"></div>
           </section>
         ` : ''}
         <section class="sniper-pane sniper-deals">
@@ -1680,6 +1732,10 @@ function readSharedSettingsForm() {
         ...base.bots.arbitrage,
         pollIntervalSec: clampNumber(document.getElementById("bot-arbitrage-poll")?.value, 5, 3600, base.bots.arbitrage.pollIntervalSec),
       },
+      anomalia: {
+        ...base.bots.anomalia,
+        pollIntervalSec: clampNumber(document.getElementById("bot-anomalia-poll")?.value, 5, 3600, base.bots.anomalia.pollIntervalSec),
+      },
     },
   };
 }
@@ -1777,6 +1833,7 @@ function foundPlatformBadgeClass(platform) {
   if (platform === "mercadolibre") return "badge-platform-mercadolibre";
   if (platform === "amazon") return "badge-platform-amazon";
   if (platform === "arbitrage") return "badge-platform-vinted";
+  if (platform === "anomalia") return "badge-platform-vinted";
   return "badge-platform-facebook";
 }
 

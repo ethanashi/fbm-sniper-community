@@ -1,7 +1,7 @@
 import { BinanceBapiAdapter } from './binance_adapter.js';
 import { ElDoradoAdapter } from './eldorado_adapter.js';
 import { AirtmAdapter } from './airtm_adapter.js';
-import { ARBITRAGE_CONFIG } from './config.js';
+import { GLOBAL_ARBITRAGE_CONFIG } from './config.js';
 import { notify } from '../lib/shared-marketplace/notifier.js';
 import chalk from 'chalk';
 import fs from 'fs';
@@ -11,8 +11,9 @@ import { ARBITRAGE_DATA_DIR, ARBITRAGE_FOUND_FILE } from '../lib/paths.js';
  * Arbitrage Engine - Core math and logic for Cross-Platform P2P Arbitrage.
  */
 export class ArbitrageEngine {
-  constructor() {
-    this.config = ARBITRAGE_CONFIG;
+  constructor(profile) {
+    this.profile = profile;
+    this.config = GLOBAL_ARBITRAGE_CONFIG;
     this.adapters = {
       binance: new BinanceBapiAdapter(),
       eldorado: new ElDoradoAdapter(),
@@ -31,8 +32,8 @@ export class ArbitrageEngine {
   /**
    * Calculate Net Spread and ROI for a specific route.
    */
-  calculateSpread(buyPriceFiat, sellPriceFiat, destFiat, sourceExchange, destExchange) {
-    const buyPriceUSD = this._convertToUSD(buyPriceFiat, this.config.FIAT_ORIGIN);
+  calculateSpread(buyPriceFiat, sellPriceFiat, sourceFiat, destFiat, sourceExchange, destExchange) {
+    const buyPriceUSD = this._convertToUSD(buyPriceFiat, sourceFiat);
     const sellPriceUSD = this._convertToUSD(sellPriceFiat, destFiat);
 
     // Fee Aggregation
@@ -53,66 +54,72 @@ export class ArbitrageEngine {
    */
   async checkOpportunities() {
     try {
-      console.log(chalk.blue(`[arbitrage] Scanning combinations from ${this.config.FIAT_ORIGIN}...`));
+      console.log(chalk.blue(`[arbitrage:${this.profile.id}] Scanning combinations for profile ${this.profile.label}...`));
       const results = [];
 
-      // Phase 7: Combinatorial Logic
-      // All possible Source Exchanges
-      for (const sourceExchange of this.config.SOURCE_EXCHANGES) {
-        const sourceAdapter = this.adapters[sourceExchange];
-        if (!sourceAdapter) continue;
+      // Iterate through all origins for this profile
+      for (const originFiat of this.profile.origins) {
+        // Phase 7: Combinatorial Logic
+        // All possible Source Exchanges
+        for (const sourceExchange of this.config.SOURCE_EXCHANGES) {
+          const sourceAdapter = this.adapters[sourceExchange];
+          if (!sourceAdapter) continue;
 
-        let buyDepth;
-        try {
-          buyDepth = await sourceAdapter.getBuyDepth(this.config.FIAT_ORIGIN, this.config.CRYPTO_ASSET);
-        } catch (err) {
-          console.error(chalk.yellow(`  [arbitrage] Skipping ${sourceExchange} (BUY): ${err.message}`));
-          continue;
-        }
+          let buyDepth;
+          try {
+            buyDepth = await sourceAdapter.getBuyDepth(originFiat, this.config.CRYPTO_ASSET);
+          } catch (err) {
+            console.error(chalk.yellow(`  [arbitrage:${this.profile.id}] Skipping ${sourceExchange} (BUY ${originFiat}): ${err.message}`));
+            continue;
+          }
 
-        // All possible Destination Exchanges
-        for (const destExchange of this.config.DESTINATION_EXCHANGES) {
-          const destAdapter = this.adapters[destExchange];
-          if (!destAdapter) continue;
+          // All possible Destination Exchanges
+          for (const destExchange of this.config.DESTINATION_EXCHANGES) {
+            const destAdapter = this.adapters[destExchange];
+            if (!destAdapter) continue;
 
-          // All possible Destination Fiats
-          await Promise.all(this.config.FIAT_DESTINOS.map(async (destFiat) => {
-            try {
-              // Add jitter to avoid rate limits
-              await new Promise(r => setTimeout(r, Math.random() * 1500));
+            // All possible Destination Fiats
+            await Promise.all(this.profile.destinations.map(async (destFiat) => {
+              try {
+                // Add jitter to avoid rate limits
+                await new Promise(r => setTimeout(r, Math.random() * 1500));
 
-              const sellDepth = await destAdapter.getSellDepth(destFiat, this.config.CRYPTO_ASSET);
-              const { buyPriceUSD, sellPriceUSD, netProfit, roi } = this.calculateSpread(
-                buyDepth.price,
-                sellDepth.price,
-                destFiat,
-                sourceExchange,
-                destExchange
-              );
+                const sellDepth = await destAdapter.getSellDepth(destFiat, this.config.CRYPTO_ASSET);
+                const { buyPriceUSD, sellPriceUSD, netProfit, roi } = this.calculateSpread(
+                  buyDepth.price,
+                  sellDepth.price,
+                  originFiat,
+                  destFiat,
+                  sourceExchange,
+                  destExchange
+                );
 
-              const tradableVolume = Math.min(buyDepth.volume, sellDepth.volume);
-              const estimatedMaxProfit = netProfit * tradableVolume;
+                const tradableVolume = Math.min(buyDepth.volume, sellDepth.volume);
+                const estimatedMaxProfit = netProfit * tradableVolume;
 
-              results.push({
-                fiat: destFiat,
-                source_exchange: sourceExchange,
-                destination_exchange: destExchange,
-                buyPrice: buyDepth.price,
-                sellPrice: sellDepth.price,
-                buyPriceUSD,
-                sellPriceUSD,
-                netProfit,
-                roi,
-                volume: tradableVolume,
-                maxProfit: estimatedMaxProfit,
-                timestamp: new Date().toISOString()
-              });
+                results.push({
+                  profile_id: this.profile.id,
+                  fiat_origin: originFiat,
+                  fiat: destFiat,
+                  source_exchange: sourceExchange,
+                  destination_exchange: destExchange,
+                  buyPrice: buyDepth.price,
+                  sellPrice: sellDepth.price,
+                  buyPriceUSD,
+                  sellPriceUSD,
+                  netProfit,
+                  roi,
+                  volume: tradableVolume,
+                  maxProfit: estimatedMaxProfit,
+                  timestamp: new Date().toISOString()
+                });
 
-              console.log(chalk.gray(`  [${sourceExchange} -> ${destExchange}] ${this.config.FIAT_ORIGIN} -> ${destFiat} | ROI: ${roi.toFixed(2)}%`));
-            } catch (err) {
-              // Silently ignore individual path failures to keep logs clean
-            }
-          }));
+                console.log(chalk.gray(`  [${this.profile.id}] [${sourceExchange} -> ${destExchange}] ${originFiat} -> ${destFiat} | ROI: ${roi.toFixed(2)}%`));
+              } catch (err) {
+                // Silently ignore individual path failures to keep logs clean
+              }
+            }));
+          }
         }
       }
 
@@ -122,27 +129,30 @@ export class ArbitrageEngine {
       results.sort((a, b) => b.roi - a.roi);
       const best = results[0];
 
-      if (best.roi >= this.config.MIN_ROI_PCT) {
-        const msg = `🚀 CROSS-PLATFORM OPPORTUNITY!\n` +
+      if (best.roi >= this.profile.minRoi) {
+        const msg = `🚀 OPPORTUNITY [${this.profile.id}]!\n` +
                     `Best ROI: ${best.roi.toFixed(2)}% (${best.source_exchange} -> ${best.destination_exchange})\n` +
-                    `Path: ${this.config.FIAT_ORIGIN} -> ${best.fiat}\n` +
+                    `Path: ${best.fiat_origin} -> ${best.fiat}\n` +
                     `Spread: $${best.netProfit.toFixed(3)} / USDT\n` +
                     `Tradable Volume: ${best.volume} USDT`;
 
         console.log(chalk.green(msg));
 
         const record = {
-          title: `Arbitrage: ${best.source_exchange} → ${best.destination_exchange}`,
+          profile_id: this.profile.id,
+          title: `Arbitrage [${this.profile.id}]: ${best.source_exchange} → ${best.destination_exchange}`,
           platform: "arbitrage",
           grade: "A",
           score: Math.round(best.roi * 10),
           reasons: [
+            `Profile: ${this.profile.label}`,
             `Spread: $${best.netProfit.toFixed(3)} USD`,
             `ROI: ${best.roi.toFixed(2)}%`,
-            `Path: ${this.config.FIAT_ORIGIN} (${best.source_exchange}) -> ${best.fiat} (${best.destination_exchange})`,
+            `Path: ${best.fiat_origin} (${best.source_exchange}) -> ${best.fiat} (${best.destination_exchange})`,
             `Volume: ${best.volume} USDT`
           ],
           listing_price: best.buyPrice,
+          fiat_origin: best.fiat_origin,
           volume: best.volume,
           max_profit: best.maxProfit,
           source_exchange: best.source_exchange,
@@ -157,14 +167,14 @@ export class ArbitrageEngine {
           if (!fs.existsSync(ARBITRAGE_DATA_DIR)) fs.mkdirSync(ARBITRAGE_DATA_DIR, { recursive: true });
           fs.appendFileSync(ARBITRAGE_FOUND_FILE, JSON.stringify(record) + "\n", "utf8");
         } catch (err) {
-          console.error(chalk.red(`[arbitrage] Failed to persist: ${err.message}`));
+          console.error(chalk.red(`[arbitrage:${this.profile.id}] Failed to persist: ${err.message}`));
         }
 
         // Notify best opportunity
         await notify(record);
       }
     } catch (err) {
-      console.error(chalk.red(`[arbitrage] Critical Error: ${err.message}`));
+      console.error(chalk.red(`[arbitrage:${this.profile.id}] Critical Error: ${err.message}`));
     }
   }
 
@@ -172,24 +182,13 @@ export class ArbitrageEngine {
    * Start the polling loop.
    */
   start() {
-    console.log(chalk.blueBright('=== Crypto Arbitrage Engine Started ==='));
+    console.log(chalk.blueBright(`=== Arbitrage Engine Started [Profile: ${this.profile.id}] ===`));
     this.checkOpportunities();
     this.interval = setInterval(() => this.checkOpportunities(), this.config.POLL_INTERVAL_MS);
   }
 
   stop() {
     if (this.interval) clearInterval(this.interval);
-    console.log(chalk.yellow('=== Crypto Arbitrage Engine Stopped ==='));
+    console.log(chalk.yellow(`=== Arbitrage Engine Stopped [Profile: ${this.profile.id}] ===`));
   }
-}
-
-// Execution block for running as a standalone process
-if (import.meta.url === `file://${process.argv[1]}` || process.argv.includes('--run')) {
-  const engine = new ArbitrageEngine();
-  engine.start();
-
-  process.on('SIGINT', () => {
-    engine.stop();
-    process.exit(0);
-  });
 }

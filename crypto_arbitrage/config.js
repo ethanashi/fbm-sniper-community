@@ -1,15 +1,10 @@
 /**
  * Configuration for the Crypto Arbitrage subsystem.
+ * Supports multiple execution profiles (Phase 8).
  */
-export const ARBITRAGE_CONFIG = {
-  FIAT_ORIGIN: process.env.FIAT_ORIGIN || 'COP',
-  FIAT_DESTINOS: (process.env.FIAT_DESTINOS || 'ARS,VES,MXN,BRL').split(','),
+
+export const GLOBAL_ARBITRAGE_CONFIG = {
   CRYPTO_ASSET: 'USDT',
-
-  // Trigger condition: Net ROI threshold in percentage
-  MIN_ROI_PCT: 2.0,
-
-  // Reference exchange rate to USD for cross-currency calculations
   REFERENCE_RATES: {
     'COP': 3900,
     'ARS': 1200,
@@ -18,10 +13,24 @@ export const ARBITRAGE_CONFIG = {
     'BRL': 5.2,
     'USD': 1
   },
-
   POLL_INTERVAL_MS: 60 * 1000,
-
-  // Phase 7: Cross-Platform Support
   SOURCE_EXCHANGES: ['binance', 'eldorado'],
   DESTINATION_EXCHANGES: ['binance', 'airtm', 'eldorado']
+};
+
+export const ARBITRAGE_PROFILES = {
+  PRINCIPAL: {
+    id: 'PRINCIPAL',
+    label: 'Arbitrage (Principal)',
+    origins: ['COP'],
+    destinations: ['ARS', 'VES', 'MXN', 'BRL'],
+    minRoi: 2.0
+  },
+  ANOMALIA: {
+    id: 'ANOMALIA',
+    label: 'Radar Inverso',
+    origins: ['ARS', 'VES'],
+    destinations: ['COP'],
+    minRoi: 1.5
+  }
 };

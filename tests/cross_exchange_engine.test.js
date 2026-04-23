@@ -1,18 +1,20 @@
 import { ArbitrageEngine } from '../crypto_arbitrage/engine.js';
+import { ARBITRAGE_PROFILES } from '../crypto_arbitrage/config.js';
 import assert from 'assert';
 import test from 'node:test';
 
 test('ArbitrageEngine Cross-Exchange Logic', async (t) => {
-  const engine = new ArbitrageEngine();
+  const engine = new ArbitrageEngine(ARBITRAGE_PROFILES.PRINCIPAL);
 
   await t.test('calculateSpread aggregates fees correctly', () => {
     // Mock prices
     const buyPriceFiat = 3900; // 1 USD in COP
     const sellPriceFiat = 1;    // 1 USD in USD
+    const sourceFiat = 'COP';
     const destFiat = 'USD';
 
     // Binance fee is 0.001, El Dorado is 0.01. Total = 0.011
-    const result = engine.calculateSpread(buyPriceFiat, sellPriceFiat, destFiat, 'binance', 'eldorado');
+    const result = engine.calculateSpread(buyPriceFiat, sellPriceFiat, sourceFiat, destFiat, 'binance', 'eldorado');
 
     // buyPriceUSD = 3900 / 3900 = 1
     // sellPriceUSD = 1 / 1 = 1

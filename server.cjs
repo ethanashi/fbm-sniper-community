@@ -79,7 +79,7 @@ const PROCESSES = {
   "arbitrage-engine": {
     label: "Crypto Arbitrage",
     cmd: process.execPath,
-    args: ["crypto_arbitrage/engine.js", "--run"],
+    args: ["crypto_arbitrage/main.js"],
     proc: null,
     stopping: false,
   },
