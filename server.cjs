@@ -554,13 +554,10 @@ async function handleRequest(req, res) {
 
     // Safety check: ensure file is within UI_DIR
     const relative = path.relative(UI_DIR, filePath);
-    if (relative.includes("..") || path.isAbsolute(relative)) {
-      // Allow only files inside UI_DIR
-      if (relative !== "") {
-          res.statusCode = 403;
-          res.end("Forbidden");
-          return;
-      }
+    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+      res.statusCode = 403;
+      res.end("Forbidden");
+      return;
     }
 
     fs.readFile(filePath, (err, content) => {
