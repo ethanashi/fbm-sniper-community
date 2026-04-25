@@ -470,6 +470,11 @@ function connectWS() {
       return;
     }
 
+    if (msg.type === "crypto_opportunities") {
+      renderSpotArbitrage(msg.data);
+      return;
+    }
+
     if (msg.type === "log") {
       appendLogLine(msg.process, msg.line, msg.ts);
       return;
@@ -972,6 +977,94 @@ function wireFoundListingsFilterInputs() {
 function renderAllMarketplaceTabs() {
   Object.keys(PLATFORM_META).forEach((platform) => renderMarketplaceTab(platform));
   renderSharedWatchlistTab();
+  updateSpotArbitrageStatus();
+}
+
+function updateSpotArbitrageStatus() {
+  const container = document.getElementById('spotArbitrageProcess');
+  if (!container) return;
+  const state = processState['spot-arbitrage'];
+  if (!state) return;
+
+  const pill = container.querySelector('.status-pill');
+  const startBtn = container.querySelector('.start-btn');
+  const stopBtn = container.querySelector('.stop-btn');
+
+  if (state.running) {
+    pill.textContent = state.stopping ? 'STOPPING...' : 'RUNNING';
+    pill.className = 'status-pill status-running';
+    startBtn.disabled = true;
+    stopBtn.disabled = state.stopping;
+  } else {
+    pill.textContent = 'STOPPED';
+    pill.className = 'status-pill status-stopped';
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  }
+}
+
+function renderSpotArbitrage(data) {
+  const tbody = document.getElementById('spotOpportunitiesTable');
+  if (!tbody) return;
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-dim">No opportunities found with > 0.1% spread. Scanning...</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(opp => `
+    <tr>
+      <td><span class="symbol-pill">${opp.symbol}</span></td>
+      <td>
+        <div class="route-display">
+          <span class="exchange-name">${opp.buyExchange}</span>
+          <span class="arrow">→</span>
+          <span class="exchange-name">${opp.sellExchange}</span>
+        </div>
+      </td>
+      <td>
+        <div class="price-copy-group">
+          <span class="price-val">${opp.buyPrice.toFixed(4)}</span>
+          <button class="copy-btn" onclick="copyToClipboard('${opp.buyPrice}', this)" title="Copy Buy Price">📋</button>
+        </div>
+      </td>
+      <td>
+        <div class="price-copy-group">
+          <span class="price-val">${opp.sellPrice.toFixed(4)}</span>
+          <button class="copy-btn" onclick="copyToClipboard('${opp.sellPrice}', this)" title="Copy Sell Price">📋</button>
+        </div>
+      </td>
+      <td>
+        <div class="price-copy-group">
+          <span class="price-val">${opp.volume.toFixed(4)}</span>
+          <button class="copy-btn" onclick="copyToClipboard('${opp.volume}', this)" title="Copy Volume">📋</button>
+        </div>
+      </td>
+      <td><span class="roi-pill ${opp.netSpread > 0 ? 'roi-positive' : ''}">${opp.netSpread.toFixed(2)}%</span></td>
+      <td><span class="profit-val">$${(opp.volume * (opp.sellPrice - opp.buyPrice)).toFixed(2)}</span></td>
+      <td>
+        <div class="action-btns">
+          <a href="${opp.buyUrl}" target="_blank" class="btn btn-xs btn-execute">Buy Site</a>
+          <a href="${opp.sellUrl}" target="_blank" class="btn btn-xs btn-journal">Sell Site</a>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function copyToClipboard(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const originalText = btn.textContent;
+    btn.textContent = '✔️';
+    btn.classList.add('copy-success');
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.classList.remove('copy-success');
+    }, 1000);
+  } catch (err) {
+    showToast("Failed to copy", "err");
+  }
 }
 
 function initArbitrageChart(platform = 'arbitrage') {

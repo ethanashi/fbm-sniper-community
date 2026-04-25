@@ -13,6 +13,7 @@ This application functions as a comprehensive monitoring dashboard and automated
     *   MercadoLibre (17+ countries)
     *   Amazon (Price-drop monitoring)
 2.  **P2P Crypto Arbitrage:** Real-time liquidity scanning to identify "Currency Dropshipping" opportunities. It detects spreads between different fiat currencies (e.g., buying USDT with COP and selling for ARS) using the Binance P2P BAPI.
+3.  **Crypto Spot Arbitrage:** High-frequency monitoring of price spreads between global spot exchanges (e.g., Binance vs. Kraken). Designed for manual execution with anti-slippage tactical tools.
 
 ## Key Features
 
@@ -27,6 +28,7 @@ This application functions as a comprehensive monitoring dashboard and automated
 *   **Combinatorial Arbitrage:** Analyzes all possible combinations of source/destination exchanges and fiat currencies.
 *   **Privacy & Security:** Runs entirely locally. No external APIs except for the target marketplaces. Native Node.js implementation without heavy frameworks like Express.
 *   **Operational Control:** Includes a secure WebSocket handshake with session-based authentication and a global "Emergency Halt" kill switch for immediate risk mitigation.
+*   **Anti-Slippage UI (Spot):** One-click clipboard copying for prices/volume and direct "Deep Link" buttons to exchange trading pairs to minimize human reaction time.
 
 ## Tech Stack
 

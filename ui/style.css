@@ -2172,3 +2172,127 @@ h2 {
 
 .exchange-badge-buy { background: rgba(79, 126, 248, 0.15); color: #9cb7ff; border-color: rgba(79, 126, 248, 0.3); }
 .exchange-badge-sell { background: rgba(46, 207, 122, 0.15); color: #a8f0c8; border-color: rgba(46, 207, 122, 0.3); }
+
+/* ── Spot Arbitrage UI Components (Phase 11) ────────────────────────────────── */
+.table-container {
+  overflow-x: auto;
+  margin-top: 1.5rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9rem;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 1rem;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 2px solid var(--border);
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.symbol-pill {
+  font-weight: 800;
+  color: #fff;
+  background: var(--border);
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+}
+
+.route-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.exchange-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.arrow {
+  color: var(--muted);
+  font-weight: bold;
+}
+
+.price-copy-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.price-val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  color: #fff;
+}
+
+.copy-btn {
+  background: none;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: all 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.copy-btn:hover {
+  background: var(--border);
+  border-color: var(--accent);
+}
+
+.copy-btn.copy-success {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.roi-pill {
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.05);
+}
+
+.roi-positive {
+  color: var(--green);
+  background: rgba(46,207,122,0.1);
+}
+
+.profit-val {
+  color: var(--green);
+  font-weight: 800;
+}
+
+.action-btns {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.mini-process {
+  flex-direction: row;
+  padding: 0.5rem 0.75rem;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-xs {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+}

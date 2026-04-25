@@ -93,6 +93,13 @@ const PROCESSES = {
     proc: null,
     stopping: false,
   },
+  "spot-arbitrage": {
+    label: "Crypto Spot Arbitrage",
+    cmd: process.execPath,
+    args: ["crypto_arbitrage/spot_main.js"],
+    proc: null,
+    stopping: false,
+  },
 };
 
 const SESSION_TOKEN = crypto.randomBytes(32).toString("hex");
@@ -179,6 +186,11 @@ function startProcess(name, extraArgs = []) {
 
   proc.stdout.on("data", (chunk) => {
     for (const line of chunk.toString().split("\n").filter(Boolean)) appendLog(name, line);
+  });
+  proc.on("message", (msg) => {
+    if (msg.type === "CRYPTO_OPPORTUNITIES") {
+      broadcast({ type: "crypto_opportunities", data: msg.data });
+    }
   });
   proc.stderr.on("data", (chunk) => {
     for (const line of chunk.toString().split("\n").filter(Boolean)) appendLog(name, `[err] ${line}`);
@@ -942,6 +954,10 @@ wss.on("connection", (ws) => {
         const arbitrageProc = PROCESSES["arbitrage-engine"].proc;
         if (arbitrageProc) {
           arbitrageProc.send("HALT");
+        }
+        const spotProc = PROCESSES["spot-arbitrage"].proc;
+        if (spotProc) {
+          spotProc.send("HALT");
         }
         broadcast({ type: "system-status", status: "System Halted", profile_id: "ALL" });
       }
