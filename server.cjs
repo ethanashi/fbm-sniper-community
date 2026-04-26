@@ -15,6 +15,14 @@ async function initJournal() {
   return journalManager;
 }
 
+let analyticsLogger = null;
+async function initAnalytics() {
+  if (analyticsLogger) return analyticsLogger;
+  const mod = await import("./lib/analytics-logger.js");
+  analyticsLogger = mod.analyticsLogger;
+  return analyticsLogger;
+}
+
 const MAX_ACTIVE_TARGETS = 10;
 const LIMIT_NOTE = "Max active targets reached (10). Disable a target to enable another.";
 
@@ -642,6 +650,18 @@ async function handleRequest(req, res) {
     const jm = await initJournal();
     const result = await jm.recordTrade(body);
     return sendJson(result);
+  }
+
+  if (pathname === "/api/analytics/history" && method === "GET") {
+    const al = await initAnalytics();
+    const data = await al.getHeatmapData();
+    return sendJson(data);
+  }
+
+  if (pathname === "/api/analytics/stats" && method === "GET") {
+    const al = await initAnalytics();
+    const data = await al.getStats();
+    return sendJson(data);
   }
 
   if (pathname === "/api/status" && method === "GET") {

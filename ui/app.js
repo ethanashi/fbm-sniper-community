@@ -186,6 +186,7 @@ let radarChart = null;
 let radarAskSeries = null;
 let radarBidSeries = null;
 let currentSpotMode = 'spatial';
+let analyticsHeatmap = null;
 let radarMuted = false;
 const radarChime = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YT9vT18AZmZtZnx+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+');
 
@@ -394,6 +395,10 @@ function setActiveTopTab(tab) {
   }
   if (tab === "found-listings") {
     loadFoundListingsDashboard();
+    return;
+  }
+  if (tab === "analytics") {
+    refreshAnalytics();
     return;
   }
   if (PLATFORM_META[tab]) {
@@ -1241,6 +1246,91 @@ function switchSpotMode(mode) {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ command: "SUBSCRIBE_MODE", mode }));
   }
+}
+
+async function refreshAnalytics() {
+  try {
+    const history = await fetch("/api/analytics/history").then(r => r.json());
+    const stats = await fetch("/api/analytics/stats").then(r => r.json());
+
+    renderHeatmap(history);
+    renderAnalyticsStats(stats);
+  } catch (err) {
+    console.error("Failed to refresh analytics:", err);
+  }
+}
+
+function renderHeatmap(data) {
+  const container = document.getElementById('analytics-heatmap');
+  if (!container) return;
+
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const series = days.map((day, dayIdx) => {
+    const dayData = Array.from({ length: 24 }, (_, hour) => {
+      const entry = data.find(d => d.day === dayIdx && d.hour === hour);
+      return { x: `${hour}:00`, y: entry ? entry.count : 0 };
+    });
+    return { name: day, data: dayData };
+  });
+
+  const options = {
+    series: series,
+    chart: { height: 350, type: 'heatmap', toolbar: { show: false } },
+    dataLabels: { enabled: false },
+    colors: ["#4f7ef8"],
+    plotOptions: {
+      heatmap: {
+        shadeIntensity: 0.5,
+        radius: 0,
+        useFillColorAsStroke: true,
+        colorScale: {
+          ranges: [
+            { from: 0, to: 0, color: '#131722', name: 'None' },
+            { from: 1, to: 5, color: '#1e3a8a', name: 'Low' },
+            { from: 6, to: 15, color: '#3b82f6', name: 'Medium' },
+            { from: 16, to: 1000, color: '#60a5fa', name: 'High' }
+          ]
+        }
+      }
+    },
+    theme: { mode: 'dark' },
+    xaxis: { type: 'category' }
+  };
+
+  if (analyticsHeatmap) {
+    analyticsHeatmap.updateOptions(options);
+  } else {
+    analyticsHeatmap = new ApexCharts(container, options);
+    analyticsHeatmap.render();
+  }
+}
+
+function renderAnalyticsStats(stats) {
+  const tbody = document.getElementById('analyticsStatsTable');
+  if (!tbody) return;
+
+  if (!stats || stats.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-dim">Gathering intelligence... No profitable patterns detected yet.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = stats.map(s => {
+    // Basic probability score based on volume and spread
+    const prob = Math.min(100, (s.total_opps * s.avg_spread * 10)).toFixed(0);
+    return `
+      <tr>
+        <td><span class="symbol-pill">${s.pair}</span></td>
+        <td><strong>${s.total_opps}</strong></td>
+        <td><span class="roi-pill roi-positive">${s.avg_spread.toFixed(2)}%</span></td>
+        <td><span class="badge badge-running">${s.peak_hour}:00</span></td>
+        <td>
+          <div class="ranking-bar-bg" style="width: 100px;">
+            <div class="ranking-bar-fill" style="width: ${prob}%"></div>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function renderSpotTableHead() {

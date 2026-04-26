@@ -33,6 +33,7 @@ This application functions as a comprehensive monitoring dashboard and automated
 *   **Operational Control:** Includes a secure WebSocket handshake with session-based authentication and a global "Emergency Halt" kill switch for immediate risk mitigation.
 *   **Anti-Slippage UI (Spot):** One-click clipboard copying for prices/volume and direct "Deep Link" buttons to exchange trading pairs to minimize human reaction time.
 *   **Tactical Radar Terminal:** Advanced UI controls including a dynamic **Noise Filter** with custom profit thresholds and **Audio Alerts** (chimes) to minimize human reaction time for profitable opportunities.
+*   **Historical Analytics & Heatmaps:** Asynchronous data logging of all profitable opportunities to SQLite. Visualize recurring market inefficiencies with a 24/7 Heatmap and predictive probability statistics.
 *   **Real-Time Spread Charting:** Visualization of the "Spread Gap" using TradingView Lightweight Charts, plotting Ask and Bid prices from multiple exchanges on a single timeline.
 
 ## Tech Stack

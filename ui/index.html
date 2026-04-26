@@ -107,6 +107,7 @@
       <button class="nav-btn" data-tab="arbitrage">Arbitrage</button>
       <button class="nav-btn" data-tab="spot-arbitrage">Spot Radar</button>
       <button class="nav-btn" data-tab="anomalia">Radar Inverso</button>
+      <button class="nav-btn" data-tab="analytics">Historical Analytics</button>
       <button class="nav-btn" data-tab="found-listings">Matches</button>
       <button class="nav-btn" data-tab="watchlist">Targets</button>
       <button class="nav-btn" data-tab="settings">Config</button>
@@ -114,6 +115,8 @@
     </nav>
     <div class="ws-indicator" id="wsIndicator" title="Live connection">●</div>
   </header>
+
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
   <div id="locationBanner" class="location-banner" hidden>
     <strong>📍 No location set.</strong>
@@ -427,6 +430,47 @@
       </div>
     </section>
     <section class="tab" id="tab-anomalia"><div id="anomaliaPanel"></div></section>
+    <section class="tab" id="tab-analytics">
+      <div class="platform-shell">
+        <section class="hero-panel">
+          <div class="platform-header">
+            <div>
+              <h2>Arbitrage Heatmap</h2>
+              <p class="panel-copy">Frequency of profitable opportunities detected by hour and day of week. Darker colors indicate high-density arbitrage windows.</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="refreshAnalytics()">Refresh Data</button>
+          </div>
+          <div id="analytics-heatmap" style="min-height: 350px;"></div>
+        </section>
+
+        <section class="hero-panel">
+          <div class="platform-header">
+            <div>
+              <h2>Predictive Statistics</h2>
+              <p class="panel-copy">Aggregated data analysis of recurring market inefficiencies.</p>
+            </div>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Target Pair</th>
+                  <th>Total Opps</th>
+                  <th>Avg Spread</th>
+                  <th>Peak Hour (UTC)</th>
+                  <th>Probability Score</th>
+                </tr>
+              </thead>
+              <tbody id="analyticsStatsTable">
+                <tr>
+                  <td colspan="5" class="text-center text-dim">No historical data found. Start the radar to begin logging.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
     <section class="tab" id="tab-found-listings">
       <div class="platform-shell">
         <section class="hero-panel">

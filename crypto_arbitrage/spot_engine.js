@@ -2,6 +2,7 @@ import { BinanceSpotAdapter } from './spot_adapters/binance.js';
 import { BybitPublicAdapter } from './spot_adapters/bybit.js';
 import { TriangularStrategy } from './strategies/triangular.js';
 import { SpatialStrategy } from './strategies/spatial.js';
+import { analyticsLogger } from '../lib/analytics-logger.js';
 
 /**
  * Agnostic Crypto Spot Engine (Phase 12).
@@ -57,7 +58,7 @@ export class CryptoSpotEngine {
 
       const opportunities = [];
       if (res.netSpread > 0.001) {
-        opportunities.push({
+        const opp = {
           symbol,
           buyExchange: 'Binance',
           sellExchange: 'Bybit',
@@ -67,6 +68,17 @@ export class CryptoSpotEngine {
           volume: Math.min(bookA.volume, bookB.volume),
           buyUrl: this.adapters.binance.getTradeUrl(symbol),
           sellUrl: this.adapters.bybit.getTradeUrl(symbol)
+        };
+        opportunities.push(opp);
+
+        // Phase 14 Logging
+        analyticsLogger.logOpportunity({
+          mode: 'spatial',
+          target_pair: symbol,
+          source_exchange: 'Binance',
+          destination_exchange: 'Bybit',
+          spread: opp.netSpread,
+          volume: opp.volume
         });
       }
 
@@ -87,6 +99,21 @@ export class CryptoSpotEngine {
   async getTriangularData(base, a, b) {
     try {
       const opportunities = await this.strategies.triangular.findOpportunities(base, a, b);
+
+      // Phase 14 Logging
+      if (opportunities && opportunities.length > 0) {
+        opportunities.forEach(opp => {
+          analyticsLogger.logOpportunity({
+            mode: 'triangular',
+            base_pair: base,
+            target_pair: `${a}/${b}`,
+            source_exchange: opp.exchange,
+            spread: opp.netROI,
+            volume: opp.step1 // Use first step as volume proxy
+          });
+        });
+      }
+
       return {
         timestamp: Date.now(),
         symbol: `${a}/${b}`,

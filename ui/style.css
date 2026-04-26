@@ -2439,3 +2439,22 @@ h2 {
   color: #fff;
   border-color: var(--accent);
 }
+
+/* ApexCharts Overrides for Dark Mode */
+.apexcharts-canvas {
+  background: #131722 !important;
+}
+.apexcharts-tooltip {
+  background: #1e222d !important;
+  border-color: var(--border) !important;
+  color: #fff !important;
+}
+.apexcharts-tooltip-title {
+  background: rgba(255,255,255,0.05) !important;
+}
+.apexcharts-legend-text {
+  color: var(--text) !important;
+}
+.apexcharts-xaxis-label, .apexcharts-yaxis-label {
+  fill: var(--muted) !important;
+}
