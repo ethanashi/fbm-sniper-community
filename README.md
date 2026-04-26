@@ -32,6 +32,7 @@ This application functions as a comprehensive monitoring dashboard and automated
 *   **Privacy & Security:** Runs entirely locally. No external APIs except for the target marketplaces. Native Node.js implementation without heavy frameworks like Express.
 *   **Operational Control:** Includes a secure WebSocket handshake with session-based authentication and a global "Emergency Halt" kill switch for immediate risk mitigation.
 *   **Anti-Slippage UI (Spot):** One-click clipboard copying for prices/volume and direct "Deep Link" buttons to exchange trading pairs to minimize human reaction time.
+*   **Tactical Radar Terminal:** Advanced UI controls including a dynamic **Noise Filter** with custom profit thresholds and **Audio Alerts** (chimes) to minimize human reaction time for profitable opportunities.
 *   **Real-Time Spread Charting:** Visualization of the "Spread Gap" using TradingView Lightweight Charts, plotting Ask and Bid prices from multiple exchanges on a single timeline.
 
 ## Tech Stack

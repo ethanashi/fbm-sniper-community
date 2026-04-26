@@ -186,6 +186,8 @@ let radarChart = null;
 let radarAskSeries = null;
 let radarBidSeries = null;
 let currentSpotMode = 'spatial';
+let radarMuted = false;
+const radarChime = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YT9vT18AZmZtZnx+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+');
 
 const FOUND_LISTINGS_META = [
   {
@@ -996,6 +998,29 @@ function renderAllMarketplaceTabs() {
   renderSpotTableHead();
 }
 
+function toggleMute() {
+  radarMuted = !radarMuted;
+  const btn = document.getElementById('radarMuteBtn');
+  if (btn) {
+    btn.innerHTML = radarMuted ? '🔇 Muted' : '🔊 Unmuted';
+    btn.classList.toggle('btn-danger', radarMuted);
+    btn.classList.toggle('btn-secondary', !radarMuted);
+  }
+}
+
+function toggleNoiseFilter(enabled) {
+  const container = document.getElementById('radarThresholdContainer');
+  if (container) container.style.display = enabled ? 'flex' : 'none';
+}
+
+function playRadarChime() {
+  if (radarMuted) return;
+  radarChime.currentTime = 0;
+  radarChime.play().catch(() => {
+    // Browser might block audio until first interaction
+  });
+}
+
 function updateSpotArbitrageStatus() {
   const container = document.getElementById('spotArbitrageProcess');
   if (!container) return;
@@ -1023,14 +1048,34 @@ function renderSpotArbitrage(data) {
   const tbody = document.getElementById('spotOpportunitiesTable');
   if (!tbody) return;
 
-  if (!data || data.length === 0) {
+  // Filter by Noise Threshold
+  const noiseEnabled = document.getElementById('radarNoiseFilter')?.checked;
+  const minProfit = parseFloat(document.getElementById('radarMinProfit')?.value || 0);
+
+  let filteredData = data || [];
+  if (noiseEnabled && !isNaN(minProfit)) {
+    filteredData = filteredData.filter(opp => {
+      const roi = currentSpotMode === 'spatial' ? opp.netSpread : opp.netROI;
+      return roi >= minProfit;
+    });
+  }
+
+  if (filteredData.length > 0 && data && data.length > 0) {
+    // Check if the best ROI is above threshold and higher than previous best to avoid spam
+    const bestROI = currentSpotMode === 'spatial' ? filteredData[0].netSpread : filteredData[0].netROI;
+    if (bestROI >= minProfit) {
+      playRadarChime();
+    }
+  }
+
+  if (!filteredData || filteredData.length === 0) {
     const cols = currentSpotMode === 'spatial' ? 7 : 7;
-    tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-dim">No opportunities found with > 0.1% ROI. Scanning...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-dim">No opportunities match filters. Scanning...</td></tr>`;
     return;
   }
 
   if (currentSpotMode === 'spatial') {
-    tbody.innerHTML = data.map(opp => `
+    tbody.innerHTML = filteredData.map(opp => `
       <tr>
         <td><span class="symbol-pill">${opp.symbol}</span></td>
         <td>
@@ -1069,7 +1114,7 @@ function renderSpotArbitrage(data) {
     `).join('');
   } else {
     // Triangular
-    tbody.innerHTML = data.map(opp => `
+    tbody.innerHTML = filteredData.map(opp => `
       <tr>
         <td><span class="symbol-pill">${opp.exchange}</span></td>
         <td><span class="route-val">${opp.route}</span></td>

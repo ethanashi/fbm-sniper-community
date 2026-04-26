@@ -375,6 +375,22 @@
                 <button class="mode-btn" data-spot-mode="triangular" onclick="switchSpotMode('triangular')">Triangular</button>
               </div>
             </div>
+            <div class="radar-terminal-controls">
+              <div class="control-group">
+                <button id="radarMuteBtn" class="btn btn-xs btn-secondary" onclick="toggleMute()" title="Toggle Audio Alerts">🔊 Unmuted</button>
+              </div>
+              <div class="control-group">
+                <span class="tool-label">Noise Filter</span>
+                <label class="switch">
+                  <input type="checkbox" id="radarNoiseFilter" onchange="toggleNoiseFilter(this.checked)">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="control-group" id="radarThresholdContainer" style="display: none;">
+                <label class="tool-label">Min %</label>
+                <input type="number" id="radarMinProfit" class="quick-input" style="width: 60px; padding: 2px 5px;" value="0.5" step="0.1">
+              </div>
+            </div>
             <div id="spotArbitrageProcess" class="process-card mini-process">
               <span class="process-label">Radar Status:</span>
               <span class="status-pill status-stopped">STOPPED</span>
