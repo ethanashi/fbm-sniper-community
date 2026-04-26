@@ -182,6 +182,10 @@ let anomaliaChart = null;
 let anomaliaSpreadSeries = {};
 let anomaliaVolumeSeries = null;
 
+let radarChart = null;
+let radarAskSeries = null;
+let radarBidSeries = null;
+
 const FOUND_LISTINGS_META = [
   {
     id: "cars",
@@ -472,6 +476,11 @@ function connectWS() {
 
     if (msg.type === "crypto_opportunities") {
       renderSpotArbitrage(msg.data);
+      return;
+    }
+
+    if (msg.type === "spot_radar_feed") {
+      handleRadarUpdate(msg.data);
       return;
     }
 
@@ -978,6 +987,7 @@ function renderAllMarketplaceTabs() {
   Object.keys(PLATFORM_META).forEach((platform) => renderMarketplaceTab(platform));
   renderSharedWatchlistTab();
   updateSpotArbitrageStatus();
+  initRadarChart();
 }
 
 function updateSpotArbitrageStatus() {
@@ -1065,6 +1075,64 @@ async function copyToClipboard(text, btn) {
   } catch (err) {
     showToast("Failed to copy", "err");
   }
+}
+
+function initRadarChart() {
+  const container = document.getElementById('spot-radar-chart');
+  if (!container || radarChart) return;
+
+  radarChart = LightweightCharts.createChart(container, {
+    width: container.clientWidth,
+    height: 400,
+    layout: {
+      backgroundColor: '#131722',
+      textColor: '#d1d4dc',
+    },
+    grid: {
+      vertLines: { color: '#242a3a' },
+      horzLines: { color: '#242a3a' },
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal,
+    },
+    timeScale: {
+      timeVisible: true,
+      secondsVisible: true,
+    },
+  });
+
+  radarAskSeries = radarChart.addLineSeries({
+    color: '#4f7ef8',
+    lineWidth: 2,
+    title: 'Binance Ask',
+  });
+
+  radarBidSeries = radarChart.addLineSeries({
+    color: '#2ecf7a',
+    lineWidth: 2,
+    title: 'Bybit Bid',
+  });
+
+  new ResizeObserver(entries => {
+    if (entries.length === 0 || !entries[0].contentRect) return;
+    radarChart.applyOptions({ width: entries[0].contentRect.width });
+  }).observe(container);
+}
+
+function handleRadarUpdate(data) {
+  if (!data) return;
+
+  // 1. Update Chart
+  const timestamp = Math.floor(data.timestamp / 1000);
+  if (radarAskSeries && data.prices.binance) {
+    radarAskSeries.update({ time: timestamp, value: data.prices.binance.ask });
+  }
+  if (radarBidSeries && data.prices.bybit) {
+    radarBidSeries.update({ time: timestamp, value: data.prices.bybit.bid });
+  }
+
+  // 2. Update Table
+  renderSpotArbitrage(data.opportunities);
 }
 
 function initArbitrageChart(platform = 'arbitrage') {

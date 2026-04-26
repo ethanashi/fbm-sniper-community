@@ -1,54 +1,50 @@
-import { SpotArbitrageEngine } from './spot_engine.js';
+import { CryptoSpotEngine } from './spot_engine.js';
 import chalk from 'chalk';
 
 /**
- * Main loop for Spot Arbitrage (Phase 11).
- * Runs in a separate process.
+ * Main loop for Global Spot Radar (Phase 11).
+ * Streams real-time price gaps and opportunities.
  */
 async function main() {
-  console.log(chalk.bold.magenta('\n💹 Initializing Spot Arbitrage Scanner...\n'));
+  console.log(chalk.bold.magenta('\n📡 Initializing Global Spot Radar Feed...\n'));
 
-  const engine = new SpotArbitrageEngine();
-  const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
+  const engine = new CryptoSpotEngine();
+  const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
 
   let isHalted = false;
 
   process.on('message', (msg) => {
     if (msg === 'HALT') {
       isHalted = true;
-      console.log(chalk.red('[spot] Halt signal received. Stopping...'));
+      console.log(chalk.red('[radar] Halt signal received.'));
     }
   });
 
   while (!isHalted) {
-    // console.log(chalk.gray(`[spot] Scanning ${symbols.length} symbols...`));
-    const allOpportunities = [];
-
     for (const symbol of symbols) {
       if (isHalted) break;
-      const opportunities = await engine.evaluatePair(symbol, 'binance', 'kraken');
-      if (opportunities.length > 0) {
-        allOpportunities.push(...opportunities);
+
+      const radarData = await engine.getRadarData(symbol);
+
+      if (radarData && process.send) {
+        process.send({
+          type: 'SPOT_RADAR_UPDATE',
+          data: radarData
+        });
       }
-      // Small jitter between symbols to avoid rate limits
-      await new Promise(r => setTimeout(r, 200));
+
+      // High frequency updates: 500ms between symbols
+      await new Promise(r => setTimeout(r, 500));
     }
 
-    if (allOpportunities.length > 0) {
-      // Send to parent process (server.cjs)
-      if (process.send) {
-        process.send({ type: 'CRYPTO_OPPORTUNITIES', data: allOpportunities });
-      }
-    }
-
-    // Wait 2 seconds before next scan
-    await new Promise(r => setTimeout(r, 2000));
+    // Refresh cycle every 1.5 seconds
+    await new Promise(r => setTimeout(r, 1000));
   }
 
   process.exit(0);
 }
 
 main().catch(err => {
-  console.error(chalk.red(`[spot] Fatal Error: ${err.message}`));
+  console.error(chalk.red(`[radar] Fatal Error: ${err.message}`));
   process.exit(1);
 });

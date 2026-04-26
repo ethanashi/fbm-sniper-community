@@ -105,7 +105,7 @@
       <button class="nav-btn" data-tab="mercadolibre">MercadoLibre</button>
       <button class="nav-btn" data-tab="amazon">Amazon</button>
       <button class="nav-btn" data-tab="arbitrage">Arbitrage</button>
-      <button class="nav-btn" data-tab="spot-arbitrage">Spot Arbitrage</button>
+      <button class="nav-btn" data-tab="spot-arbitrage">Spot Radar</button>
       <button class="nav-btn" data-tab="anomalia">Radar Inverso</button>
       <button class="nav-btn" data-tab="found-listings">Matches</button>
       <button class="nav-btn" data-tab="watchlist">Targets</button>
@@ -346,15 +346,27 @@
         <section class="hero-panel">
           <div class="platform-header">
             <div>
-              <h2>Crypto Spot Arbitrage</h2>
-              <p class="panel-copy">Real-time monitoring of price spreads between top global spot exchanges. Execute manually to bypass API restrictions.</p>
+              <h2>Global Spot Radar</h2>
+              <p class="panel-copy">Agnostic real-time tracking of price inefficiencies across global exchanges. Execute manually where you hold liquidity.</p>
             </div>
             <div id="spotArbitrageProcess" class="process-card mini-process">
-              <span class="process-label">Scanner Status:</span>
+              <span class="process-label">Radar Status:</span>
               <span class="status-pill status-stopped">STOPPED</span>
               <button class="btn btn-xs btn-primary start-btn" onclick="startProcess('spot-arbitrage')">Start</button>
               <button class="btn btn-xs btn-danger stop-btn" onclick="stopProcess('spot-arbitrage')" disabled>Stop</button>
             </div>
+          </div>
+
+          <!-- Phase 11 Charting Module -->
+          <div class="chart-wrapper">
+            <div class="chart-header">
+              <div class="chart-title">Real-Time Spread Gap (Ask Binance vs Bid Bybit)</div>
+              <div class="chart-legend">
+                <span class="legend-item"><span class="dot binance-dot"></span> Binance Ask</span>
+                <span class="legend-item"><span class="dot bybit-dot"></span> Bybit Bid</span>
+              </div>
+            </div>
+            <div id="spot-radar-chart" class="radar-chart-container"></div>
           </div>
 
           <div class="table-container">
@@ -367,13 +379,12 @@
                   <th>Sell Price</th>
                   <th>Max Vol</th>
                   <th>Net ROI</th>
-                  <th>Profit (USDT)</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="spotOpportunitiesTable">
                 <tr>
-                  <td colspan="8" class="text-center text-dim">Waiting for data... Start the scanner to begin.</td>
+                  <td colspan="7" class="text-center text-dim">Waiting for radar feed... Start the scanner to begin.</td>
                 </tr>
               </tbody>
             </table>

@@ -3,6 +3,7 @@ import fetch from 'node-fetch';
 
 /**
  * Binance Spot Adapter using public REST API (Phase 11).
+ * Refactored for standardized Radar output.
  */
 export class BinanceSpotAdapter extends BaseCryptoAdapter {
   constructor() {

@@ -1,81 +1,84 @@
 import { BinanceSpotAdapter } from './spot_adapters/binance.js';
-import { KrakenSpotAdapter } from './spot_adapters/kraken.js';
+import { BybitPublicAdapter } from './spot_adapters/bybit.js';
 
 /**
- * Engine for Spot Arbitrage (Phase 11).
- * Calculates spreads between spot exchanges.
+ * Agnostic Crypto Spot Engine (Phase 11).
+ * Optimized for real-time radar data and charting.
  */
-export class SpotArbitrageEngine {
+export class CryptoSpotEngine {
   constructor() {
     this.adapters = {
       binance: new BinanceSpotAdapter(),
-      kraken: new KrakenSpotAdapter()
+      bybit: new BybitPublicAdapter()
     };
-    this.estimated_network_fee_usdt = 1.0; // Placeholder for future withdrawal logic
   }
 
   /**
-   * Evaluate arbitrage opportunity for a specific symbol between two exchanges.
+   * Fetch latest prices and calculate spreads for a given symbol.
    */
-  async evaluatePair(symbol, exchA_id, exchB_id) {
-    const adapterA = this.adapters[exchA_id];
-    const adapterB = this.adapters[exchB_id];
-
+  async getRadarData(symbol) {
     try {
-      const bookA = await adapterA.getOrderBook(symbol);
-      const bookB = await adapterB.getOrderBook(symbol);
+      const bookA = await this.adapters.binance.getOrderBook(symbol);
+      const bookB = await this.adapters.bybit.getOrderBook(symbol);
 
-      // Scenario 1: Buy on A, Sell on B
-      const res1 = this.calculate(bookA.ask, bookB.bid, adapterA.getTakerFee(), adapterB.getTakerFee());
+      const timestamp = Date.now();
 
-      // Scenario 2: Buy on B, Sell on A
-      const res2 = this.calculate(bookB.ask, bookA.bid, adapterB.getTakerFee(), adapterA.getTakerFee());
+      // Calculation: (Best Bid B - Best Ask A) vs (Best Bid A - Best Ask B)
+      const exchA = { name: 'Binance', ask: bookA.ask, bid: bookA.bid, fee: this.adapters.binance.getTakerFee(), url: this.adapters.binance.getTradeUrl(symbol) };
+      const exchB = { name: 'Bybit', ask: bookB.ask, bid: bookB.bid, fee: this.adapters.bybit.getTakerFee(), url: this.adapters.bybit.getTradeUrl(symbol) };
 
-      const results = [];
+      const opportunities = [];
 
-      if (res1.netSpread > 0.001) { // Only report if > 0.1%
-        results.push({
+      // Route 1: Buy on A, Sell on B
+      const res1 = this.calculateSpread(exchA.ask, exchB.bid, exchA.fee, exchB.fee);
+      if (res1.netSpread > 0.001) {
+        opportunities.push({
           symbol,
-          buyExchange: adapterA.exchangeName,
-          sellExchange: adapterB.exchangeName,
-          buyPrice: bookA.ask,
-          sellPrice: bookB.bid,
+          buyExchange: exchA.name,
+          sellExchange: exchB.name,
+          buyPrice: exchA.ask,
+          sellPrice: exchB.bid,
           volume: Math.min(bookA.volume, bookB.volume),
-          grossSpread: res1.grossSpread * 100,
           netSpread: res1.netSpread * 100,
-          fees: (res1.grossSpread - res1.netSpread) * 100,
-          buyUrl: adapterA.getTradeUrl(symbol),
-          sellUrl: adapterB.getTradeUrl(symbol)
+          buyUrl: exchA.url,
+          sellUrl: exchB.url
         });
       }
 
+      // Route 2: Buy on B, Sell on A
+      const res2 = this.calculateSpread(exchB.ask, exchA.bid, exchB.fee, exchA.fee);
       if (res2.netSpread > 0.001) {
-        results.push({
+        opportunities.push({
           symbol,
-          buyExchange: adapterB.exchangeName,
-          sellExchange: adapterA.exchangeName,
-          buyPrice: bookB.ask,
-          sellPrice: bookA.bid,
-          volume: Math.min(bookB.volume, bookA.volume),
-          grossSpread: res2.grossSpread * 100,
+          buyExchange: exchB.name,
+          sellExchange: exchA.name,
+          buyPrice: exchB.ask,
+          sellPrice: exchA.bid,
+          volume: Math.min(bookA.volume, bookB.volume),
           netSpread: res2.netSpread * 100,
-          fees: (res2.grossSpread - res2.netSpread) * 100,
-          buyUrl: adapterB.getTradeUrl(symbol),
-          sellUrl: adapterA.getTradeUrl(symbol)
+          buyUrl: exchB.url,
+          sellUrl: exchA.url
         });
       }
 
-      return results;
+      return {
+        timestamp,
+        symbol,
+        prices: {
+          binance: { bid: bookA.bid, ask: bookA.ask },
+          bybit: { bid: bookB.bid, ask: bookB.ask }
+        },
+        opportunities
+      };
     } catch (err) {
-      // console.error(`[spot_engine] Error evaluating ${symbol}:`, err.message);
-      return [];
+      // console.error(`[spot_engine] Radar error for ${symbol}:`, err.message);
+      return null;
     }
   }
 
-  calculate(buyPrice, sellPrice, feeA, feeB) {
+  calculateSpread(buyPrice, sellPrice, feeA, feeB) {
     const grossSpread = (sellPrice - buyPrice) / buyPrice;
-    const totalFees = feeA + feeB;
-    const netSpread = grossSpread - totalFees;
-    return { grossSpread, netSpread };
+    const netSpread = grossSpread - (feeA + feeB);
+    return { netSpread };
   }
 }

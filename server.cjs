@@ -191,6 +191,9 @@ function startProcess(name, extraArgs = []) {
     if (msg.type === "CRYPTO_OPPORTUNITIES") {
       broadcast({ type: "crypto_opportunities", data: msg.data });
     }
+    if (msg.type === "SPOT_RADAR_UPDATE") {
+      broadcast({ type: "spot_radar_feed", data: msg.data });
+    }
   });
   proc.stderr.on("data", (chunk) => {
     for (const line of chunk.toString().split("\n").filter(Boolean)) appendLog(name, `[err] ${line}`);
