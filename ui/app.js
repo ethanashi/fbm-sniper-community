@@ -185,6 +185,7 @@ let anomaliaVolumeSeries = null;
 let radarChart = null;
 let radarAskSeries = null;
 let radarBidSeries = null;
+let currentSpotMode = 'spatial';
 
 const FOUND_LISTINGS_META = [
   {
@@ -462,6 +463,8 @@ function connectWS() {
       renderAllMarketplaceTabs();
       renderFoundListingsTab();
       refreshStatus();
+      // Ensure backend is synced with default spot mode
+      switchSpotMode(currentSpotMode);
       return;
     }
 
@@ -480,7 +483,9 @@ function connectWS() {
     }
 
     if (msg.type === "spot_radar_feed") {
-      handleRadarUpdate(msg.data);
+      if (msg.mode === currentSpotMode) {
+        handleRadarUpdate(msg.data);
+      }
       return;
     }
 
@@ -988,6 +993,7 @@ function renderAllMarketplaceTabs() {
   renderSharedWatchlistTab();
   updateSpotArbitrageStatus();
   initRadarChart();
+  renderSpotTableHead();
 }
 
 function updateSpotArbitrageStatus() {
@@ -1018,48 +1024,82 @@ function renderSpotArbitrage(data) {
   if (!tbody) return;
 
   if (!data || data.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-dim">No opportunities found with > 0.1% spread. Scanning...</td></tr>`;
+    const cols = currentSpotMode === 'spatial' ? 7 : 7;
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center text-dim">No opportunities found with > 0.1% ROI. Scanning...</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = data.map(opp => `
-    <tr>
-      <td><span class="symbol-pill">${opp.symbol}</span></td>
-      <td>
-        <div class="route-display">
-          <span class="exchange-name">${opp.buyExchange}</span>
-          <span class="arrow">→</span>
-          <span class="exchange-name">${opp.sellExchange}</span>
-        </div>
-      </td>
-      <td>
-        <div class="price-copy-group">
-          <span class="price-val">${opp.buyPrice.toFixed(4)}</span>
-          <button class="copy-btn" onclick="copyToClipboard('${opp.buyPrice}', this)" title="Copy Buy Price">📋</button>
-        </div>
-      </td>
-      <td>
-        <div class="price-copy-group">
-          <span class="price-val">${opp.sellPrice.toFixed(4)}</span>
-          <button class="copy-btn" onclick="copyToClipboard('${opp.sellPrice}', this)" title="Copy Sell Price">📋</button>
-        </div>
-      </td>
-      <td>
-        <div class="price-copy-group">
-          <span class="price-val">${opp.volume.toFixed(4)}</span>
-          <button class="copy-btn" onclick="copyToClipboard('${opp.volume}', this)" title="Copy Volume">📋</button>
-        </div>
-      </td>
-      <td><span class="roi-pill ${opp.netSpread > 0 ? 'roi-positive' : ''}">${opp.netSpread.toFixed(2)}%</span></td>
-      <td><span class="profit-val">$${(opp.volume * (opp.sellPrice - opp.buyPrice)).toFixed(2)}</span></td>
-      <td>
-        <div class="action-btns">
-          <a href="${opp.buyUrl}" target="_blank" class="btn btn-xs btn-execute">Buy Site</a>
-          <a href="${opp.sellUrl}" target="_blank" class="btn btn-xs btn-journal">Sell Site</a>
-        </div>
-      </td>
-    </tr>
-  `).join('');
+  if (currentSpotMode === 'spatial') {
+    tbody.innerHTML = data.map(opp => `
+      <tr>
+        <td><span class="symbol-pill">${opp.symbol}</span></td>
+        <td>
+          <div class="route-display">
+            <span class="exchange-name">${opp.buyExchange}</span>
+            <span class="arrow">→</span>
+            <span class="exchange-name">${opp.sellExchange}</span>
+          </div>
+        </td>
+        <td>
+          <div class="price-copy-group">
+            <span class="price-val">${opp.buyPrice.toFixed(4)}</span>
+            <button class="copy-btn" onclick="copyToClipboard('${opp.buyPrice}', this)" title="Copy Buy Price">📋</button>
+          </div>
+        </td>
+        <td>
+          <div class="price-copy-group">
+            <span class="price-val">${opp.sellPrice.toFixed(4)}</span>
+            <button class="copy-btn" onclick="copyToClipboard('${opp.sellPrice}', this)" title="Copy Sell Price">📋</button>
+          </div>
+        </td>
+        <td>
+          <div class="price-copy-group">
+            <span class="price-val">${opp.volume.toFixed(4)}</span>
+            <button class="copy-btn" onclick="copyToClipboard('${opp.volume}', this)" title="Copy Volume">📋</button>
+          </div>
+        </td>
+        <td><span class="roi-pill ${opp.netSpread > 0 ? 'roi-positive' : ''}">${opp.netSpread.toFixed(2)}%</span></td>
+        <td>
+          <div class="action-btns">
+            <a href="${opp.buyUrl}" target="_blank" class="btn btn-xs btn-execute">Buy</a>
+            <a href="${opp.sellUrl}" target="_blank" class="btn btn-xs btn-journal">Sell</a>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  } else {
+    // Triangular
+    tbody.innerHTML = data.map(opp => `
+      <tr>
+        <td><span class="symbol-pill">${opp.exchange}</span></td>
+        <td><span class="route-val">${opp.route}</span></td>
+        <td>
+          <div class="price-copy-group">
+            <span class="price-val">${opp.step1.toFixed(4)}</span>
+            <button class="copy-btn" onclick="copyToClipboard('${opp.step1}', this)">📋</button>
+          </div>
+        </td>
+        <td>
+          <div class="price-copy-group">
+            <span class="price-val">${opp.step2.toFixed(4)}</span>
+            <button class="copy-btn" onclick="copyToClipboard('${opp.step2}', this)">📋</button>
+          </div>
+        </td>
+        <td>
+          <div class="price-copy-group">
+            <span class="price-val">${opp.step3.toFixed(4)}</span>
+            <button class="copy-btn" onclick="copyToClipboard('${opp.step3}', this)">📋</button>
+          </div>
+        </td>
+        <td><span class="roi-pill roi-positive">${opp.netROI.toFixed(2)}%</span></td>
+        <td>
+          <div class="action-btns">
+            <a href="${opp.actions[0]}" target="_blank" class="btn btn-xs btn-primary">Trade</a>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
 }
 
 async function copyToClipboard(text, btn) {
@@ -1122,17 +1162,71 @@ function initRadarChart() {
 function handleRadarUpdate(data) {
   if (!data) return;
 
-  // 1. Update Chart
-  const timestamp = Math.floor(data.timestamp / 1000);
-  if (radarAskSeries && data.prices.binance) {
-    radarAskSeries.update({ time: timestamp, value: data.prices.binance.ask });
-  }
-  if (radarBidSeries && data.prices.bybit) {
-    radarBidSeries.update({ time: timestamp, value: data.prices.bybit.bid });
+  // 1. Update Chart (Spatial only)
+  if (currentSpotMode === 'spatial') {
+    const timestamp = Math.floor(data.timestamp / 1000);
+    if (radarAskSeries && data.prices.binance) {
+      radarAskSeries.update({ time: timestamp, value: data.prices.binance.ask });
+    }
+    if (radarBidSeries && data.prices.bybit) {
+      radarBidSeries.update({ time: timestamp, value: data.prices.bybit.bid });
+    }
   }
 
   // 2. Update Table
   renderSpotArbitrage(data.opportunities);
+}
+
+function switchSpotMode(mode) {
+  currentSpotMode = mode;
+
+  // UI Updates
+  document.querySelectorAll('[data-spot-mode]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.spotMode === mode);
+  });
+
+  document.getElementById('spatial-chart-wrapper').style.display = (mode === 'spatial') ? 'block' : 'none';
+
+  renderSpotTableHead();
+
+  // Clear table
+  document.getElementById('spotOpportunitiesTable').innerHTML = `<tr><td colspan="7" class="text-center text-dim">Switching modes...</td></tr>`;
+
+  // Backend Update
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ command: "SUBSCRIBE_MODE", mode }));
+  }
+}
+
+function renderSpotTableHead() {
+  const head = document.getElementById('spot-table-head');
+  if (!head) return;
+
+  if (currentSpotMode === 'spatial') {
+    head.innerHTML = `
+      <tr>
+        <th>Symbol</th>
+        <th>Route (Buy → Sell)</th>
+        <th>Buy Price</th>
+        <th>Sell Price</th>
+        <th>Max Vol</th>
+        <th>Net ROI</th>
+        <th>Actions</th>
+      </tr>
+    `;
+  } else {
+    head.innerHTML = `
+      <tr>
+        <th>Exchange</th>
+        <th>Route (A → B → C)</th>
+        <th>Step 1</th>
+        <th>Step 2</th>
+        <th>Step 3</th>
+        <th>Net ROI</th>
+        <th>Actions</th>
+      </tr>
+    `;
+  }
 }
 
 function initArbitrageChart(platform = 'arbitrage') {
@@ -1307,8 +1401,11 @@ function renderMarketplaceTab(platform) {
   const proxyBadgeClass = proxyCount ? "sniper-proxy-ok" : "sniper-proxy-none";
   const proxyBadgeText = proxyCount ? `${proxyCount} proxy${proxyCount === 1 ? "" : "ies"}` : "No proxies";
 
+  const onboarding = buildOnboardingHtml(platform);
+
   mount.innerHTML = `
     <div class="sniper-shell">
+      ${onboarding}
       <div class="sniper-top">
         <div class="sniper-control">
           <div>
@@ -1456,6 +1553,55 @@ function buildMercadoLibreExtraSettings(botConfig) {
     <div class="sniper-setting-item sniper-setting-cookie">
       <label for="sniper-mercadolibre-token">Access Token</label>
       <input type="password" id="sniper-mercadolibre-token" placeholder="Optional App Access Token" autocomplete="off" value="${escAttr(accessToken)}" />
+    </div>
+  `;
+}
+
+function buildOnboardingHtml(platform) {
+  let content = "";
+  let title = "";
+
+  if (platform === 'arbitrage') {
+    title = "📖 P2P Arbitrage Guide";
+    content = `
+      <div class="onboarding-step">
+        <h4>P2P Strategy</h4>
+        <p>Detects spreads between fiat currencies on P2P marketplaces (e.g. COP -> USDT -> ARS). Buy USDT with your local currency and sell it for a more expensive fiat.</p>
+        <p class="math-hint">ROI = ((Net Profit in USD) / (Buy Price in USD)) * 100</p>
+      </div>
+      <div class="onboarding-step">
+        <h4>Tactical Tools</h4>
+        <p>Enable "Deep Links" to jump directly to exchange payment methods. Use the "Trade Journal" to record PnL in SQLite automatically.</p>
+      </div>
+    `;
+  } else if (platform === 'anomalia') {
+    title = "📖 Radar Inverso Guide";
+    content = `
+      <div class="onboarding-step">
+        <h4>Reverse Radar</h4>
+        <p>Identifies anomalies where it's cheaper to buy USDT with secondary currencies (ARS/VES) and sell for COP. High risk, high reward.</p>
+      </div>
+    `;
+  } else if (PLATFORM_META[platform]) {
+    title = `📖 ${PLATFORM_META[platform].label} Sniper Guide`;
+    content = `
+      <div class="onboarding-step">
+        <h4>Market Sniping</h4>
+        <p>Monitors ${PLATFORM_META[platform].label} for electronics and vehicles based on your targets. Programmatic scoring filters out bad deals without AI.</p>
+      </div>
+    `;
+  }
+
+  if (!content) return "";
+
+  return `
+    <div class="onboarding-panel">
+      <details>
+        <summary>${title}</summary>
+        <div class="onboarding-content">
+          ${content}
+        </div>
+      </details>
     </div>
   `;
 }

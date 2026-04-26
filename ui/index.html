@@ -343,11 +343,37 @@
     <section class="tab" id="tab-arbitrage"><div id="arbitragePanel"></div></section>
     <section class="tab" id="tab-spot-arbitrage">
       <div class="platform-shell">
+        <!-- Onboarding Tutorial Panel -->
+        <div class="onboarding-panel" id="spot-onboarding">
+          <details>
+            <summary>📖 How to use Global Spot Radar</summary>
+            <div class="onboarding-content">
+              <div class="onboarding-step">
+                <h4>Mode 1: Spatial (Inter-Exchange)</h4>
+                <p>Tracks price gaps between Binance and Bybit. Buy on the cheaper exchange and sell on the more expensive one.</p>
+                <p class="math-hint">ROI = ((Bid B - Ask A) / Ask A) - (Fee A + Fee B)</p>
+              </div>
+              <div class="onboarding-step">
+                <h4>Mode 2: Triangular (Single Exchange)</h4>
+                <p>Exploits price inefficiencies between three pairs on a single exchange (e.g., USDT -> BTC -> ETH -> USDT).</p>
+                <p class="math-hint">Note: Standard taker fees are applied 3 times.</p>
+              </div>
+              <div class="onboarding-step">
+                <h4>Tactical Tools</h4>
+                <p>Use the 📋 clipboard icons to copy raw prices instantly. Direct trade links open the specific pair on the exchange site.</p>
+              </div>
+            </div>
+          </details>
+        </div>
+
         <section class="hero-panel">
           <div class="platform-header">
             <div>
               <h2>Global Spot Radar</h2>
-              <p class="panel-copy">Agnostic real-time tracking of price inefficiencies across global exchanges. Execute manually where you hold liquidity.</p>
+              <div class="mode-selector">
+                <button class="mode-btn active" data-spot-mode="spatial" onclick="switchSpotMode('spatial')">Spatial</button>
+                <button class="mode-btn" data-spot-mode="triangular" onclick="switchSpotMode('triangular')">Triangular</button>
+              </div>
             </div>
             <div id="spotArbitrageProcess" class="process-card mini-process">
               <span class="process-label">Radar Status:</span>
@@ -358,7 +384,7 @@
           </div>
 
           <!-- Phase 11 Charting Module -->
-          <div class="chart-wrapper">
+          <div id="spatial-chart-wrapper" class="chart-wrapper">
             <div class="chart-header">
               <div class="chart-title">Real-Time Spread Gap (Ask Binance vs Bid Bybit)</div>
               <div class="chart-legend">
@@ -371,16 +397,8 @@
 
           <div class="table-container">
             <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Symbol</th>
-                  <th>Route (Buy → Sell)</th>
-                  <th>Buy Price</th>
-                  <th>Sell Price</th>
-                  <th>Max Vol</th>
-                  <th>Net ROI</th>
-                  <th>Actions</th>
-                </tr>
+              <thead id="spot-table-head">
+                <!-- Dynamic headers -->
               </thead>
               <tbody id="spotOpportunitiesTable">
                 <tr>

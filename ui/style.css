@@ -2349,3 +2349,76 @@ h2 {
   border-radius: 8px;
   overflow: hidden;
 }
+
+/* ── Onboarding & Mode Selector ────────────────────────────────────────────── */
+.onboarding-panel {
+  background: rgba(79, 126, 248, 0.05);
+  border: 1px solid rgba(79, 126, 248, 0.2);
+  border-radius: 12px;
+  padding: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.onboarding-panel summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--accent);
+  list-style: none;
+}
+
+.onboarding-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2rem;
+  padding: 1.5rem 0 1rem;
+}
+
+.onboarding-step h4 {
+  color: #fff;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.onboarding-step p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.math-hint {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(0,0,0,0.2);
+  padding: 0.4rem;
+  border-radius: 4px;
+  margin-top: 0.5rem !important;
+  color: var(--yellow) !important;
+}
+
+.mode-selector {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.mode-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.mode-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}

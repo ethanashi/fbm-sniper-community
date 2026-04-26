@@ -964,6 +964,13 @@ wss.on("connection", (ws) => {
         }
         broadcast({ type: "system-status", status: "System Halted", profile_id: "ALL" });
       }
+
+      if (msg.command === "SUBSCRIBE_MODE") {
+        const spotProc = PROCESSES["spot-arbitrage"].proc;
+        if (spotProc) {
+          spotProc.send({ command: "SET_MODE", mode: msg.mode });
+        }
+      }
     } catch (e) {}
   });
 });

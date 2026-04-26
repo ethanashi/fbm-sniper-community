@@ -13,11 +13,13 @@ This application functions as a comprehensive monitoring dashboard and automated
     *   MercadoLibre (17+ countries)
     *   Amazon (Price-drop monitoring)
 2.  **P2P Crypto Arbitrage:** Real-time liquidity scanning to identify "Currency Dropshipping" opportunities. It detects spreads between different fiat currencies (e.g., buying USDT with COP and selling for ARS) using the Binance P2P BAPI.
-3.  **Crypto Spot Arbitrage:** High-frequency monitoring of price spreads between global spot exchanges (e.g., Binance vs. Bybit). Designed for manual execution with anti-slippage tactical tools.
+3.  **Crypto Spot Arbitrage:** High-frequency monitoring of price spreads between global spot exchanges. Supports **Spatial (Inter-Exchange)** and **Triangular (Single Exchange)** strategies.
 4.  **Global Spot Radar:** An agnostic real-time "radar" that tracks price inefficiencies across exchanges without being tied to any single execution platform.
 
 ## Key Features
 
+*   **Modular Arbitrage Hub:** Toggle between different arbitrage strategies (P2P, Spatial, Triangular) without UI clutter.
+*   **Interactive Onboarding:** Built-in tutorials for every trading mode, explaining math logic and risks to new users.
 *   **Real-Time Dashboard:** A unified UI to monitor all active bots, logs, and found matches.
 *   **Advanced Filtering:** AI-free, robust Regex-based filtering with customizable blacklists and whitelists.
 *   **Mathematical Trading Logic:**
