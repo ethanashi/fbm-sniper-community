@@ -511,6 +511,8 @@ h2 {
 .badge-platform-facebook { background: rgba(46,207,122,.12); color: var(--green); }
 .badge-platform-wallapop { background: rgba(79,126,248,.16); color: #9cb7ff; }
 .badge-platform-vinted { background: rgba(16,185,129,.14); color: #7ee8c2; }
+.badge-platform-mercadolibre { background: rgba(255,230,0,.12); color: #ffe600; }
+.badge-platform-amazon { background: rgba(255,153,0,.12); color: #ff9900; }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────────── */
 .toolbar {
@@ -2114,3 +2116,345 @@ h2 {
 .grade-chip-c.active { background: rgba(246,201,78,.18); border-color: rgba(246,201,78,.5);  color: #f6c94e; }
 .grade-chip-d.active { background: rgba(240,82,82,.14);  border-color: rgba(240,82,82,.45);  color: #ff8d8d; }
 .grade-chip-f.active { background: rgba(240,82,82,.18);  border-color: rgba(240,82,82,.55);  color: #ff8d8d; }
+
+/* ── Arbitrage Ranking Bars ────────────────────────────────────────────────── */
+.arbitrage-ranking-item {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ranking-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.ranking-route {
+  font-weight: 600;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.ranking-roi {
+  font-weight: 700;
+  color: var(--green);
+}
+
+.ranking-bar-bg {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.ranking-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.exchange-badge {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background: var(--border);
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.exchange-badge-buy { background: rgba(79, 126, 248, 0.15); color: #9cb7ff; border-color: rgba(79, 126, 248, 0.3); }
+.exchange-badge-sell { background: rgba(46, 207, 122, 0.15); color: #a8f0c8; border-color: rgba(46, 207, 122, 0.3); }
+
+/* ── Spot Arbitrage UI Components (Phase 11) ────────────────────────────────── */
+.table-container {
+  overflow-x: auto;
+  margin-top: 1.5rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9rem;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 1rem;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 2px solid var(--border);
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-table td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.symbol-pill {
+  font-weight: 800;
+  color: #fff;
+  background: var(--border);
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+}
+
+.route-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.exchange-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.arrow {
+  color: var(--muted);
+  font-weight: bold;
+}
+
+.price-copy-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.price-val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+  color: #fff;
+}
+
+.copy-btn {
+  background: none;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: all 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.copy-btn:hover {
+  background: var(--border);
+  border-color: var(--accent);
+}
+
+.copy-btn.copy-success {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.roi-pill {
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.05);
+}
+
+.roi-positive {
+  color: var(--green);
+  background: rgba(46,207,122,0.1);
+}
+
+.profit-val {
+  color: var(--green);
+  font-weight: 800;
+}
+
+.action-btns {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.mini-process {
+  flex-direction: row;
+  padding: 0.5rem 0.75rem;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-xs {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+}
+
+/* ── Radar Chart Styles ────────────────────────────────────────────────────── */
+.chart-wrapper {
+  background: #131722;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.chart-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.binance-dot { background: #4f7ef8; }
+.bybit-dot { background: #2ecf7a; }
+
+.radar-chart-container {
+  width: 100%;
+  height: 400px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ── Onboarding & Mode Selector ────────────────────────────────────────────── */
+.onboarding-panel {
+  background: rgba(79, 126, 248, 0.05);
+  border: 1px solid rgba(79, 126, 248, 0.2);
+  border-radius: 12px;
+  padding: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.onboarding-panel summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--accent);
+  list-style: none;
+}
+
+.onboarding-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2rem;
+  padding: 1.5rem 0 1rem;
+}
+
+.onboarding-step h4 {
+  color: #fff;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.onboarding-step p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.radar-terminal-controls {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: rgba(0,0,0,0.2);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.radar-terminal-controls .control-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.math-hint {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(0,0,0,0.2);
+  padding: 0.4rem;
+  border-radius: 4px;
+  margin-top: 0.5rem !important;
+  color: var(--yellow) !important;
+}
+
+.mode-selector {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.mode-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.mode-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ApexCharts Overrides for Dark Mode */
+.apexcharts-canvas {
+  background: #131722 !important;
+}
+.apexcharts-tooltip {
+  background: #1e222d !important;
+  border-color: var(--border) !important;
+  color: #fff !important;
+}
+.apexcharts-tooltip-title {
+  background: rgba(255,255,255,0.05) !important;
+}
+.apexcharts-legend-text {
+  color: var(--text) !important;
+}
+.apexcharts-xaxis-label, .apexcharts-yaxis-label {
+  fill: var(--muted) !important;
+}

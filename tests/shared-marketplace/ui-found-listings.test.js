@@ -120,6 +120,7 @@ test("buildSharedDealCard labels the source platform on found cards", () => {
     escHtml: (value) => String(value),
     escAttr: (value) => String(value),
     formatEuro: (value) => `€${value}`,
+    formatPrice: (value, currency) => `${currency} ${value}`,
   });
 
   const html = buildSharedDealCard("wallapop", {
