@@ -7,8 +7,7 @@ A powerful, open-source multi-platform tool for marketplace sniping and real-tim
 This application functions as a comprehensive monitoring dashboard and automated alerting system for two primary domains:
 
 1.  **Marketplace Sniping:** Tracks high-demand electronics and vehicles across multiple platforms:
-    *   Facebook Marketplace (Cars & Electronics)
-    *   Wallapop (Electronics)
+    *   Facebook Marketplace (Electronics)
     *   Vinted (Worldwide support)
     *   MercadoLibre (17+ countries)
     *   Amazon (Price-drop monitoring)
@@ -18,8 +17,9 @@ This application functions as a comprehensive monitoring dashboard and automated
 
 ## Key Features
 
-*   **Modular Arbitrage Hub:** Toggle between different arbitrage strategies (P2P, Spatial, Triangular) without UI clutter.
-*   **Interactive Onboarding:** Built-in tutorials for every trading mode, explaining math logic and risks to new users.
+*   **Modular Arbitrage Hub:** Toggle between different arbitrage strategies (P2P, Spatial, Triangular) without UI clutter. Includes user-defined capital and ROI thresholds.
+*   **Tactical Radar Terminal:** Advanced UI controls including a dynamic **Noise Filter** with custom profit thresholds and **Audio Alerts** (chimes).
+*   **Interactive Onboarding:** Comprehensive built-in tutorials for every trading mode, explaining what the tool does, how to interpret results (ROI, Volume, Route), and the math behind the arbitrage.
 *   **Real-Time Dashboard:** A unified UI to monitor all active bots, logs, and found matches.
 *   **Advanced Filtering:** AI-free, robust Regex-based filtering with customizable blacklists and whitelists.
 *   **Mathematical Trading Logic:**

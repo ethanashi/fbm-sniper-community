@@ -21,6 +21,9 @@ async function main() {
     }
     if (msg.command === 'SET_MODE') {
       currentMode = msg.mode;
+      if (msg.provider) {
+        engine.setProvider(msg.provider);
+      }
       console.log(chalk.blue(`[radar] Switched to mode: ${currentMode}`));
     }
   });

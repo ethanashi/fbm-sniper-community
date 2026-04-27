@@ -37,7 +37,6 @@ const CONFIG_FILE = path.join(DATA_DIR, "config.json");
 const SEEN_IDS_FILE = path.join(DATA_DIR, "seen_ids.json");
 const SHARED_FOUND_FILES = {
   facebook: path.join(DATA_DIR, "facebook", "found.ndjson"),
-  wallapop: path.join(DATA_DIR, "wallapop", "found.ndjson"),
   vinted: path.join(DATA_DIR, "vinted", "found.ndjson"),
   mercadolibre: path.join(DATA_DIR, "mercadolibre", "found.ndjson"),
   amazon: path.join(DATA_DIR, "amazon", "found.ndjson"),
@@ -52,24 +51,10 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const IS_ELECTRON = !!process.versions.electron;
 
 const PROCESSES = {
-  "car-sniper": {
-    label: "FBM Sniper",
-    cmd: process.execPath,
-    args: ["lib/scanner.js"],
-    proc: null,
-    stopping: false,
-  },
   "facebook-sniper": {
     label: "Facebook Sniper",
     cmd: process.execPath,
     args: ["lib/facebook-sniper.js"],
-    proc: null,
-    stopping: false,
-  },
-  "wallapop-sniper": {
-    label: "Wallapop Sniper",
-    cmd: process.execPath,
-    args: ["lib/wallapop-sniper.js"],
     proc: null,
     stopping: false,
   },
@@ -665,7 +650,6 @@ async function handleRequest(req, res) {
   }
 
   if (pathname === "/api/status" && method === "GET") {
-    const foundDeals = readFoundDeals();
     const watchlist = readWatchlist();
     const processes = {};
     for (const [key, value] of Object.entries(PROCESSES)) {
@@ -674,7 +658,6 @@ async function handleRequest(req, res) {
     return sendJson({
       edition: "community",
       processes,
-      stats: buildStats(foundDeals),
       watchlistCount: watchlist.length,
       targetGroups: buildGroups(watchlist),
       limits: buildLimits(watchlist),
@@ -988,7 +971,7 @@ wss.on("connection", (ws) => {
       if (msg.command === "SUBSCRIBE_MODE") {
         const spotProc = PROCESSES["spot-arbitrage"].proc;
         if (spotProc) {
-          spotProc.send({ command: "SET_MODE", mode: msg.mode });
+          spotProc.send({ command: "SET_MODE", mode: msg.mode, provider: msg.provider });
         }
       }
     } catch (e) {}

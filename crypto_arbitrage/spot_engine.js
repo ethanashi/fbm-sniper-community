@@ -1,5 +1,7 @@
 import { BinanceSpotAdapter } from './spot_adapters/binance.js';
 import { BybitPublicAdapter } from './spot_adapters/bybit.js';
+import { KrakenSpotAdapter } from './spot_adapters/kraken.js';
+import { CoinbaseSpotAdapter } from './spot_adapters/coinbase.js';
 import { TriangularStrategy } from './strategies/triangular.js';
 import { SpatialStrategy } from './strategies/spatial.js';
 import { analyticsLogger } from '../lib/analytics-logger.js';
@@ -7,18 +9,45 @@ import { analyticsLogger } from '../lib/analytics-logger.js';
 /**
  * Agnostic Crypto Spot Engine (Phase 12).
  * Refactored into specialized strategies with math utility restoration.
+ * Now supports dynamic feed providers (Phase 15).
  */
 export class CryptoSpotEngine {
   constructor() {
     this.adapters = {
       binance: new BinanceSpotAdapter(),
-      bybit: new BybitPublicAdapter()
+      bybit: new BybitPublicAdapter(),
+      kraken: new KrakenSpotAdapter(),
+      coinbase: new CoinbaseSpotAdapter()
     };
 
+    // Default providers
+    this.providerA = this.adapters.binance;
+    this.providerB = this.adapters.bybit;
+
     this.strategies = {
-      triangular: new TriangularStrategy(this.adapters.binance),
-      spatial: new SpatialStrategy(this.adapters.binance, this.adapters.bybit)
+      triangular: new TriangularStrategy(this.providerA),
+      spatial: new SpatialStrategy(this.providerA, this.providerB)
     };
+  }
+
+  /**
+   * Update the active feed provider.
+   */
+  setProvider(providerName) {
+    if (providerName === 'kraken-coinbase') {
+      this.providerA = this.adapters.kraken;
+      this.providerB = this.adapters.coinbase;
+    } else {
+      // Default to binance-bybit
+      this.providerA = this.adapters.binance;
+      this.providerB = this.adapters.bybit;
+    }
+
+    this.strategies.triangular.adapter = this.providerA;
+    this.strategies.spatial.adapterA = this.providerA;
+    this.strategies.spatial.adapterB = this.providerB;
+
+    console.log(`[radar] Switched to provider: ${providerName}`);
   }
 
   /**
@@ -46,52 +75,57 @@ export class CryptoSpotEngine {
 
   async getSpatialData(symbol) {
     try {
-      const bookA = await this.adapters.binance.getOrderBook(symbol);
-      const bookB = await this.adapters.bybit.getOrderBook(symbol);
+      const bookA = await this.providerA.getOrderBook(symbol);
+      const bookB = await this.providerB.getOrderBook(symbol);
 
       const res = this.strategies.spatial.calculateSpread(
         bookA.ask,
         bookB.bid,
-        this.adapters.binance.getTakerFee(),
-        this.adapters.bybit.getTakerFee()
+        this.providerA.getTakerFee(),
+        this.providerB.getTakerFee()
       );
 
       const opportunities = [];
-      if (res.netSpread > 0.001) {
+      // Adjust threshold slightly
+      if (res.netSpread > -0.01) {
         const opp = {
           symbol,
-          buyExchange: 'Binance',
-          sellExchange: 'Bybit',
+          buyExchange: this.providerA.exchangeName,
+          sellExchange: this.providerB.exchangeName,
           buyPrice: bookA.ask,
           sellPrice: bookB.bid,
           netSpread: res.netSpread * 100,
           volume: Math.min(bookA.volume, bookB.volume),
-          buyUrl: this.adapters.binance.getTradeUrl(symbol),
-          sellUrl: this.adapters.bybit.getTradeUrl(symbol)
+          buyUrl: this.providerA.getTradeUrl(symbol),
+          sellUrl: this.providerB.getTradeUrl(symbol)
         };
         opportunities.push(opp);
 
-        // Phase 14 Logging
-        analyticsLogger.logOpportunity({
-          mode: 'spatial',
-          target_pair: symbol,
-          source_exchange: 'Binance',
-          destination_exchange: 'Bybit',
-          spread: opp.netSpread,
-          volume: opp.volume
-        });
+        // Phase 14 Logging (Only if actually profitable)
+        if (opp.netSpread > 0) {
+          analyticsLogger.logOpportunity({
+            mode: 'spatial',
+            target_pair: symbol,
+            source_exchange: this.providerA.exchangeName,
+            destination_exchange: this.providerB.exchangeName,
+            spread: opp.netSpread,
+            volume: opp.volume
+          });
+        }
       }
+
+      const prices = {};
+      prices[this.providerA.exchangeName.toLowerCase()] = { ask: bookA.ask };
+      prices[this.providerB.exchangeName.toLowerCase()] = { bid: bookB.bid };
 
       return {
         timestamp: Date.now(),
         symbol,
-        prices: {
-          binance: { ask: bookA.ask },
-          bybit: { bid: bookB.bid }
-        },
+        prices,
         opportunities
       };
     } catch (err) {
+      console.error(`[radar] Spatial error for ${symbol}:`, err.message);
       return null;
     }
   }
