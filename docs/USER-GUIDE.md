@@ -29,8 +29,9 @@ Download the latest release from GitHub:
 | Intel Mac | `FBM.Sniper.Community-2.0.3.dmg` |
 | Windows x64 | `FBM.Sniper.Community.Setup.2.0.3.exe` |
 
-On macOS, open the `.dmg` and **drag the app into Applications first**. Do not launch it from inside the DMG — macOS will apply stricter quarantine rules to apps running from a mounted disk image and you will hit the "could not verify" block on every launch.
+### macOS Installation
 
+On macOS, open the `.dmg` and **drag the app into Applications first**. Do not launch it from inside the DMG — macOS will apply stricter quarantine rules to apps running from a mounted disk image and you will hit the "could not verify" block on every launch.
 Once the app is in `/Applications`, Gatekeeper may still warn that "macOS cannot verify that this app is free of malware" because the app is unsigned. You have two ways to get past it:
 
 **Option A — clear the quarantine attribute (recommended):**
@@ -41,15 +42,29 @@ xattr -cr "/Applications/FBM Sniper Community.app"
 
 **Option B — approve it in System Settings (macOS Sequoia 15+):**
 
+
 1. Double-click the app and let the warning appear.
 2. Click **Done**.
 3. Open **System Settings → Privacy & Security**.
 4. Scroll to the Security section. You will see a line saying *"FBM Sniper Community was blocked..."* with an **Open Anyway** button.
 5. Click **Open Anyway**, confirm with your password, and the app will launch. macOS will remember the approval for future launches.
 
-On Windows, SmartScreen may warn because the app is unsigned. Click **More info** and then **Run anyway**.
+### Windows Installation
+
+1. Download `FBM.Sniper.Community.Setup.2.0.3.exe`
+2. Run the installer
+3. SmartScreen may warn because the app is unsigned. Click **More info** and then **Run anyway**
+4. Follow the installation wizard
+5. The app will open after installation
 
 On first launch, the app opens immediately and downloads Puppeteer Chrome into app data in the background. This is a one-time setup of about 150 MB. The dashboard is usable right away; the Chrome-powered bots (Cars, Facebook) will wait for the download before they can start.
+
+### System Requirements
+
+- **macOS**: 10.13 or later
+- **Windows**: Windows 10 or later, x64 architecture
+- **Disk Space**: ~200 MB
+- **RAM**: 2 GB minimum
 
 ## What Runs Locally
 
