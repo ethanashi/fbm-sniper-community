@@ -1,114 +1,301 @@
-# FBM Sniper — User Guide
+# FBM Sniper Community v2 User Guide (v2.0.3)
 
-Welcome. This guide walks a brand-new user through getting the bot running, understanding what it does, and using the dashboard to actually flip cars (or whatever else you're hunting). If you get stuck anywhere in here, the Discord is the fastest way to unblock.
+FBM Sniper Community is a local desktop app for watching marketplace deals across:
 
-## 👉 First thing: Join the Discord
+- Cars on Facebook Marketplace
+- Facebook Marketplace electronics
+- Wallapop electronics
+- Vinted electronics
 
-If you haven't already, join the community Discord:
+The app runs on your computer, stores data locally, and gives you a live dashboard for starting bots, tuning targets, reviewing found listings, and sending optional Discord alerts.
+
+## Join The Discord
+
+If you need help, examples, or target JSON templates, join the community Discord:
 
 **[discord.gg/BkpQSnth4C](https://discord.gg/BkpQSnth4C)**
 
-That's where setup help, write-ups, and live Q&A happen. You'll want access before you start tinkering — it saves a ton of time.
+Use `#how-to-use-bot` for walkthroughs, `#questions` for setup help, and `#best-flips` to share wins.
 
----
+## Install The App
 
-## 1. What is FBM Sniper?
+Download the latest release from GitHub:
 
-FBM Sniper is a desktop app that watches Facebook Marketplace for deals that match rules you set, scores each listing against those rules, and shows you the winners in a local dashboard. Think of it as a 24/7 buyer sitting on Marketplace refreshing search results for you — except it also runs the numbers on every listing before it bothers you about it.
+**[github.com/ethanashi/fbm-sniper-community/releases](https://github.com/ethanashi/fbm-sniper-community/releases)**
 
-Everything is local. There's no server you log into, no account, no data sent anywhere. The scanner talks to Facebook from your machine, stores the results in `data/`, and the dashboard reads from that folder.
-
-**Core loop:**
-1. You define **targets** — what you're hunting (e.g. "Honda Civic 2016-2021 under $18k within 120km").
-2. The **scanner** queries Facebook Marketplace for each active target on a rolling interval.
-3. Each listing is parsed, decoded (VIN lookup + recall check if a VIN is available), and scored against your target rules.
-4. The **underwriter** assigns a verdict: `buy_now`, `maybe`, or `pass`.
-5. Passing listings go to the Found tab. Failed listings go to Rejected with the reason.
-6. You click through to the FB listing and close the deal.
-
----
-
-## 2. Installing it
-
-No Node.js or technical setup required. Go to the GitHub releases page and download the right file for your machine:
-
-**→ [github.com/ethanashi/fbm-sniper-community/releases](https://github.com/ethanashi/fbm-sniper-community/releases)**
-
-| Platform | File to download |
+| Platform | File |
 | --- | --- |
-| Apple Silicon Mac (M1/M2/M3/M4) | `FBM Sniper Community-0.1.0-arm64.dmg` |
-| Intel Mac | `FBM Sniper Community-0.1.0.dmg` |
-| Windows PC (x64) | `FBM Sniper Community Setup 0.1.0.exe` |
+| Apple Silicon Mac | `FBM.Sniper.Community-2.0.3-arm64.dmg` |
+| Intel Mac | `FBM.Sniper.Community-2.0.3.dmg` |
+| Windows x64 | `FBM.Sniper.Community.Setup.2.0.3.exe` |
 
-Double-click the `.dmg`, drag the app to `/Applications`, and open it.
+On macOS, open the `.dmg` and **drag the app into Applications first**. Do not launch it from inside the DMG — macOS will apply stricter quarantine rules to apps running from a mounted disk image and you will hit the "could not verify" block on every launch.
 
-**"App is damaged" on first open?** The app isn't signed with an Apple Developer ID, so macOS Gatekeeper throws a scary-sounding warning. It's not actually damaged. Open Terminal and run this once:
+Once the app is in `/Applications`, Gatekeeper may still warn that "macOS cannot verify that this app is free of malware" because the app is unsigned. You have two ways to get past it:
+
+**Option A — clear the quarantine attribute (recommended):**
 
 ```bash
 xattr -cr "/Applications/FBM Sniper Community.app"
 ```
 
-Then reopen the app. That's it — you won't need to do it again.
+**Option B — approve it in System Settings (macOS Sequoia 15+):**
 
-**Windows SmartScreen warning?** The Windows build is also unsigned. If Windows says "Windows protected your PC", click **More info** and then **Run anyway**.
+1. Double-click the app and let the warning appear.
+2. Click **Done**.
+3. Open **System Settings → Privacy & Security**.
+4. Scroll to the Security section. You will see a line saying *"FBM Sniper Community was blocked..."* with an **Open Anyway** button.
+5. Click **Open Anyway**, confirm with your password, and the app will launch. macOS will remember the approval for future launches.
 
-**First launch:** the app will download Chrome automatically (~150 MB). You'll see a "Downloading Chrome" screen — this only happens once. After that, the app opens instantly every time.
+On Windows, SmartScreen may warn because the app is unsigned. Click **More info** and then **Run anyway**.
 
-**After Chrome downloads:** a browser window will open and ask you to log into Facebook. Do that — the scanner needs an authenticated session to pull listings. Once you're logged in, close that window and you're ready to configure your targets and start scanning.
+On first launch, the app opens immediately and downloads Puppeteer Chrome into app data in the background. This is a one-time setup of about 150 MB. The dashboard is usable right away; the Chrome-powered bots (Cars, Facebook) will wait for the download before they can start.
 
-If you're not sure if your Mac is Apple Silicon or Intel: Apple menu → About This Mac. If it says "Apple M1" (or M2/M3/M4), grab the arm64 file. If it says "Intel Core", grab the regular one.
+## What Runs Locally
 
----
+Everything important is local:
 
-## 3. The dashboard tour
+- Your watchlists and settings live in app data.
+- Found listings and seen IDs live in app data.
+- Discord webhooks are optional.
+- The app does not require a hosted account or cloud login.
 
-When the Electron app opens you get six tabs:
+When packaged as Electron, app data is stored in the operating system user-data folder. When running from source, data lives under the repo `data/` folder.
 
-### Dashboard
-Top-level stats: number of Buy Now finds, Maybes, average margin, and recall flags. Below that is the **Process** card — the green Start button spins up the scanner. The Targets summary shows how many targets are enabled and how they're grouped.
+## Dashboard Tour
 
-### Watchlist
-All your targets as cards. You can toggle targets on/off with the switch, or click **+ Add Target** to paste in a new one. The pill at the top shows how many are active out of 10 (the hard cap).
+The top navigation has eight main areas.
+
+### Cars
+
+The Cars tab keeps the original Facebook Marketplace car workflow in one place.
+
+Use the Cars sub-tabs:
+
+- **Overview** shows scanner stats and the car scanner process card.
+- **Watchlist** manages car targets with the 10-active-target limit.
+- **Found** shows car listings marked `Buy Now` or `Maybe`.
+- **Rejected** shows listings the car scanner skipped and why.
+- **Config** contains quick settings, raw car config JSON, raw car target JSON, and Reset Memory.
+
+Cars use dollar-based underwriting fields such as estimated retail, max buy, margin, fees reserve, recon reserve, title status, mileage, and risk score.
+
+### Facebook
+
+The Facebook tab controls the shared Facebook electronics sniper.
+
+You can:
+
+- Start or stop the Facebook bot.
+- Set the Facebook poll interval.
+- Refresh recent Facebook deals.
+- Filter deal cards by grade.
+- Watch the Facebook bot log beside the deal feed.
+
+Facebook uses the shared Watchlist and shared Settings.
+
+### Wallapop
+
+The Wallapop tab controls the shared Wallapop electronics sniper.
+
+You can:
+
+- Start or stop the Wallapop bot.
+- Set the Wallapop poll interval.
+- Review live Wallapop hits with photos.
+- Filter by grade.
+- Watch Wallapop logs in the same tab.
+
+Wallapop uses the shared Watchlist and shared Settings. Targets can override Wallapop min and max price separately from Facebook or Vinted.
+
+### Vinted
+
+The Vinted tab controls the shared Vinted electronics sniper.
+
+You can:
+
+- Start or stop the Vinted bot.
+- **Pick your Vinted country** from the dropdown. Vinted runs a separate site per country (`www.vinted.es`, `.fr`, `.de`, `.co.uk`, `.com`, etc.) and the bot will refuse to start until you choose one.
+- Set the Vinted poll interval.
+- Paste an optional Vinted cookie.
+- Paste the matching User-Agent for that cookie.
+- Review Vinted hits with fee-aware pricing.
+- Watch Vinted logs in the same tab.
+
+Supported countries: United States, Spain, France, Germany, United Kingdom, Italy, Netherlands, Belgium, Poland, Czechia, Slovakia, Austria, Portugal, Luxembourg, Lithuania, Finland, Sweden, Denmark, Hungary, Croatia, Greece, Romania, and Ireland.
+
+The cookie should include `access_token_web=...` **from the same country domain you selected**. If you leave it blank, the bot still tries its automatic cookie flow.
 
 ### Found Listings
-Every listing the bot decided was a Buy Now or Maybe. Filter by keyword, verdict, or group. Click a card to open the review modal with full numbers — estimated retail, max buy, margin, recon reserve, fees reserve, risk score. From there you can open the listing in your browser with one click.
 
-### Rejected
-Listings the bot threw out, with the exact reason (flagged keyword, mileage cap, title status, below margin floor, etc.). This is where you go when you're tuning a target — if it's rejecting things you'd actually want, loosen a rule.
+Found Listings is the combined live feed. It merges:
+
+- Cars
+- Facebook
+- Wallapop
+- Vinted
+
+Use it when you want one real-time deal board instead of switching tabs.
+
+You can:
+
+- Search by title.
+- Filter by platform.
+- Filter to good deals or okay-or-better deals.
+- Toggle entire platforms on or off with the platform chips.
+- Open listings directly from the cards.
+
+Each card shows the source platform badge, listing photo when available, price, target, group, grade, and deal notes.
+
+### Watchlist
+
+The top-level Watchlist tab is for the shared Facebook, Wallapop, and Vinted targets.
+
+Each shared target can run on one or more platforms. A target card includes:
+
+- Target label
+- Search query
+- Group
+- Enabled or disabled state
+- Platform checkboxes for Facebook, Wallapop, and Vinted
+- Optional per-platform min and max prices
+- Aliases
+- Must-include keywords
+- Must-avoid keywords
+
+Use **+ Add Target** to paste a new target JSON object.
 
 ### Settings
-Three panels:
-- **Quick Settings** — the stuff you change often: scan cooldown, search radius, shipping, location (label + lat/lng), search/detail worker counts, proxy URL, proxy pool.
-- **App Config (JSON)** — raw config for power users.
-- **Targets (JSON)** — the full watchlist as JSON. Edit and save.
-- **Danger Zone** — Reset Memory wipes found/rejected/seen-IDs so the scanner re-processes everything it sees next loop.
+
+The top-level Settings tab controls the shared marketplace workspace for Facebook, Wallapop, and Vinted.
+
+**Location is now mandatory and blank by default.** The Settings tab no longer has a city label field — only **Latitude** and **Longitude**. None of the snipers (Facebook, Wallapop, Vinted) will start until you fill in both numbers and click **Save Shared Settings**. An amber banner stays pinned to the top of the dashboard with an **Open Settings** shortcut until a valid location is saved.
+
+The latitude/longitude you enter is what actually controls which city's listings the bots search. Typing "Phoenix, AZ" anywhere will do nothing — you must paste Phoenix's coordinates (`33.4484, -112.0740`) for the bots to search Phoenix. Grab coords for any city by googling "<city> latitude longitude" or by right-clicking the map pin in Google Maps (the first line of the popup is the `lat, lng` pair).
+
+It includes:
+
+- Proxy URL
+- Proxy Pool
+- Recommended proxy provider: [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7)
+- Latitude and longitude (required — coords only, no label)
+- Include photos in Discord alerts
+- Max photos per alert
+- Browser opening behavior
+- Auto-open Buy Now toggle
+- Discord webhook for all deals
+- Discord webhook for Buy Now deals
+- Discord webhook for Maybe deals
+- Per-bot poll intervals
+- **Facebook GraphQL token fields** — Search doc_id, Search Variables, Detail doc_id, Detail Variables (see **Facebook GraphQL Token Setup** below for how to capture these)
+- **Vinted country** (required before the Vinted bot will start)
+- Vinted cookie and User-Agent
+- Raw shared watchlist JSON
+
+Click **Save Shared Settings** after editing. The app shows a green side notification when the save completes.
 
 ### Logs
-Live terminal output from the scanner. If something is failing, this is where the error shows up.
 
----
+The Logs tab shows terminal output for:
 
-## 4. Setting up your first target
+- Cars
+- Facebook
+- Wallapop
+- Vinted
 
-Open the **Watchlist** tab → **+ Add Target**. Paste a JSON object that looks like this:
+Use it when a bot is not starting, gets blocked, or returns bad responses.
+
+## Starting A Bot
+
+1. Open the top-level **Settings** tab and confirm your latitude and longitude are saved. If you plan to run Vinted, pick your country as well. None of the bots will start without these.
+2. Open the tab for the bot you want to run.
+3. Check the poll interval.
+4. Click **Start**.
+5. Watch the Live Deals panel and the log panel.
+6. Click **Stop** when you want the current bot to stop after the current step finishes.
+
+Each bot runs separately. You can run only the platforms you care about.
+
+If a bot refuses to start, check its Log tab. A missing-location or missing-Vinted-country error prints a clear red message telling you which field to fill in.
+
+## Shared Target JSON
+
+Shared targets power Facebook, Wallapop, and Vinted. This is the simplest useful shape:
 
 ```json
 {
-  "id": "honda-civic-2016-2021",
-  "label": "Honda Civic 2016-2021",
+  "id": "iphone-15-pro",
+  "label": "iPhone 15 Pro",
+  "group": "Phones",
+  "enabled": true,
+  "product": "iphone",
+  "targetType": "electronics",
+  "platforms": ["facebook", "wallapop", "vinted"],
+  "query": "iPhone 15 Pro",
+  "aliases": ["iPhone 15 Pro", "15 Pro"],
+  "mustInclude": [],
+  "mustAvoid": ["icloud", "bloqueado", "parts", "repuestos"],
+  "radiusKM": null,
+  "minPrice": 150,
+  "maxPrice": 900,
+  "allowShipping": true,
+  "platformOverrides": {
+    "wallapop": {
+      "minPrice": 150,
+      "maxPrice": 850
+    },
+    "vinted": {
+      "minPrice": 120,
+      "maxPrice": 750
+    }
+  }
+}
+```
+
+Important fields:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Stable unique ID. If omitted, the app creates one from the label/query. |
+| `label` | Human-readable target name. |
+| `group` | UI bucket for filtering. |
+| `enabled` | `false` hides the target from bot runs. |
+| `product` | Supported values include `iphone`, `mac`, `ipad`, `airpods`, `playstation`, and `console`. |
+| `targetType` | Usually `electronics` for shared marketplace bots. |
+| `platforms` | Any mix of `facebook`, `wallapop`, and `vinted`. |
+| `query` | Search text sent to the platform. |
+| `aliases` | Extra words that help match listings back to the target. |
+| `mustInclude` | If set, listing text must include at least one of these terms. |
+| `mustAvoid` | Listings containing these terms are skipped. |
+| `radiusKM` | Optional target-specific search radius. `null` uses shared location defaults. |
+| `minPrice` / `maxPrice` | Shared price band. |
+| `allowShipping` | Whether shippable listings are allowed when the platform supports it. |
+| `platformOverrides` | Per-site price overrides, useful because prices differ by marketplace. |
+
+## Car Target JSON
+
+Car targets are separate from shared electronics targets and live under Cars -> Config or Cars -> Watchlist.
+
+Example:
+
+```json
+{
+  "id": "toyota-camry-2018-2022",
+  "label": "Toyota Camry 2018-2022",
   "group": "Reliable Sedans",
   "enabled": true,
-  "make": "Honda",
-  "model": "Civic",
-  "query": "Honda Civic",
-  "yearStart": 2016,
-  "yearEnd": 2021,
+  "targetType": "vehicle",
+  "make": "Toyota",
+  "model": "Camry",
+  "query": "Toyota Camry",
+  "yearStart": 2018,
+  "yearEnd": 2022,
   "minPrice": 5000,
   "maxPrice": 18000,
   "radiusKM": 120,
   "allowShipping": false,
-  "retailBase": 14500,
-  "baselineYear": 2019,
+  "retailBase": 16000,
+  "baselineYear": 2020,
   "yearlyAdjustment": 900,
   "baselineMiles": 85000,
   "mileagePenaltyPer10k": 450,
@@ -118,87 +305,260 @@ Open the **Watchlist** tab → **+ Add Target**. Paste a JSON object that looks 
   "marginFloor": 2200,
   "mustInclude": [],
   "mustAvoid": ["salvage", "flood", "frame damage", "parts only"],
-  "trimBoostKeywords": ["touring", "si"]
+  "trimBoostKeywords": ["xse", "xle", "hybrid"]
 }
 ```
 
-The fields that actually matter for scoring:
+Cars are capped at 10 active targets. If you add an 11th enabled target, disable another target first.
 
-| Field | What it does |
+## How Deal Grades Work
+
+The community edition uses programmatic scoring, not AI.
+
+For shared marketplace electronics:
+
+| Grade | Meaning |
 | --- | --- |
-| `query` | The FB Marketplace search string |
-| `yearStart` / `yearEnd` | Hard filter on model year |
-| `minPrice` / `maxPrice` | Hard filter on list price |
-| `radiusKM` | Search radius from your Settings location |
-| `retailBase` | Your estimated retail for the baseline year/mileage |
-| `baselineYear` / `yearlyAdjustment` | How much retail changes per year off baseline |
-| `baselineMiles` / `mileagePenaltyPer10k` | How much retail drops per 10k miles over baseline |
-| `maxMileage` | Hard reject above this |
-| `feesReserve` + `reconBase` | Money you reserve for fees/recon before calculating margin |
-| `marginFloor` | Minimum profit the bot needs to see before calling it Buy Now |
-| `mustInclude` | Listing must contain at least one of these words |
-| `mustAvoid` | Listing with any of these words is rejected |
-| `trimBoostKeywords` | Retail bumped up if the listing mentions these trims |
+| `A` | Strong deal, usually far below max-buy. |
+| `B` | Good deal. |
+| `C` | Fair deal, worth checking. |
+| `D` | Lowball target, likely only worth messaging with a lower offer. |
+| `F` | Skip or junk. |
+| `?` | No reference price was available, so review manually. |
 
-You can have up to **10 enabled targets** at once.
+Deal borders in the UI are based on real price-vs-ceiling or price-vs-max-buy data when available. A good grade alone does not always mean a green border if the app does not have enough pricing context.
 
----
+For cars:
 
-## 5. How scoring actually works
+| Verdict | Meaning |
+| --- | --- |
+| `Buy Now` | Listing appears under max buy with enough spread and acceptable risk. |
+| `Maybe` | Worth reviewing or sending a low offer. |
+| `Pass` | Rejected or not enough edge. |
 
-For each listing the bot pulls, it runs this pipeline:
+## Discord Alerts
 
-1. **Hard filters** — keyword avoid list, price band, year range, mileage cap, title status. Fail here → Rejected.
-2. **Retail estimate** — starts from `retailBase`, adjusts up/down by year and mileage vs. baseline, applies trim boost if relevant keywords are present.
-3. **VIN decode + recalls** — if a VIN is in the listing, the NHTSA free API fills in make/model/year/trim and flags open recalls.
-4. **Reserves** — subtracts `feesReserve` + `reconBase` + any recon cost inferred from issue signals (e.g. "needs tires", "ac not working").
-5. **Max buy** = `estRetail - reconReserve - feesReserve`.
-6. **Margin** = `estRetail - listingPrice - reconReserve - feesReserve`.
-7. **Verdict**:
-   - `buy_now` — listing price is at or below max buy *and* risk score is low
-   - `maybe` — within ~8% of max buy, medium risk (worth a lowball)
-   - `pass` — everything else
+Discord is optional. If all webhook fields are blank, the app still runs normally.
 
-Photo grading is rules-only in this edition — listings come back as `ungraded` with a "needs manual review" flag so you eyeball the photos yourself before pulling the trigger.
+In Settings, you can set:
 
----
+- **All Deals Webhook** for every graded deal.
+- **Buy Now Webhook** for grades `A` and `B`.
+- **Maybe Webhook** for grades `C` and `D`.
 
-## 6. Proxies (read this if you plan to run more than a few scans)
+You can also choose whether alerts include photos and how many photos to attach.
 
-Facebook rate-limits residential IPs aggressively. If you run the scanner without a proxy for more than a few loops, you'll start seeing error 1675004 in the logs — that's an IP block.
+## Vinted Country And Cookie Setup
 
-Fix it by adding a proxy in **Settings → Quick Settings → Proxy URL**. Any HTTP proxy in the form `http://user:pass@host:port` works. If you have multiple, drop them in the **Proxy Pool** field (one per line); the scanner cycles through them across your active targets.
+Before Vinted can run, pick your country from the **Vinted Country** dropdown in Settings (or in the inline strip on the Vinted tab). The bot uses the matching domain, locale, and referer for every request.
 
-Ask in the Discord `#questions` channel if you need recommendations for proxy providers.
+A cookie is optional — the bot tries an automatic cookie flow first. Paste one only if Vinted starts returning auth errors or you want a stronger bypass. The cookie **must come from the same country site you selected in the dropdown**:
 
----
+1. Log into your country's Vinted site (for example `www.vinted.fr` if you picked France).
+2. Open DevTools.
+3. Go to Application or Storage cookies.
+4. Find the cookie string that includes `access_token_web=...`.
+5. Copy the cookie value.
+6. Paste it into the Vinted cookie field.
+7. Copy the same browser User-Agent from DevTools Network headers.
+8. Paste it into the Vinted User-Agent field.
+9. Click **Apply** or **Save Shared Settings**.
 
-## 7. Tuning and troubleshooting
+The cookie and User-Agent should come from the same browser session on the same country domain. Mixing a `.fr` cookie with a `.es` country selection will fail.
 
-- **Nothing is showing up in Found.** Check Rejected first. 9 times out of 10 a `mustAvoid` keyword or your `marginFloor` is too aggressive. Loosen one thing at a time.
-- **Everything is rejected with "above mileage cap".** Bump `maxMileage` on the target.
-- **Bot finds stuff but it's stale.** Lower the scan cooldown in Quick Settings (minimum 180 seconds — that's 3 minutes, the floor in this edition).
-- **Getting rate-limited / IP blocked.** Configure a proxy. See section 6.
-- **FB login prompt keeps popping up.** Your cached session expired. Log in again in the Puppeteer window.
-- **Something weirder.** Check the **Logs** tab. If you're still stuck, drop it in `#questions` on Discord.
+## Facebook GraphQL Token Setup
 
----
+> **Use a secondary Facebook account — not your real one.** Facebook may flag or restrict accounts used for automated marketplace scraping. This has not been confirmed as a permanent ban trigger, but it is safer to use a throwaway or alternate account. Do not log into your personal Facebook account in the bot's browser.
 
-## 8. How the Discord works
+The Facebook bot connects to Marketplace using Facebook's internal GraphQL API. The API requires a `doc_id` — a server-side query identifier — plus a matching `variables` payload that tells Facebook the shape of the request. These tokens expire and get rotated by Facebook, so if the bot stops returning listings you will need to refresh them.
 
-**[discord.gg/BkpQSnth4C](https://discord.gg/BkpQSnth4C)**
+### Signs you need to refresh
 
-🚨 **Bot Access Is Open** 🚨 — if you just got let in, welcome. Things move fast; here's the lay of the land.
+- Bot logs show `All doc_id candidates failed`
+- Logs show `doc_id was not found` or `missing_required_variable_value (1675012)`
+- The bot runs without errors but returns zero listings every cycle
 
-### ❓ Questions
-If you need help with anything bot-related, drop it in **#questions**. Someone is usually around, and write-ups for common issues get posted there too. Don't DM — asking publicly means the next person with the same problem finds the answer.
+### What you need to capture
 
-### 📘 How to Use It
-**#how-to-use-bot** — full setup guide and write-up. If you're trying to get started and haven't read this yet, start here. The newest write-up is always pinned.
+There are two queries to capture: one for **search** (the main listing feed) and one for **detail** (individual listing pages). Each one needs its own `doc_id` and optionally a `variables` blob.
 
-### 💰 Got a Flip?
-If the bot helps you catch a good flip, post it in **#best-flips**. Screenshots, numbers, the before/after — let's see who's really cooking. This is also the easiest way to get a feel for what good targets look like before you build your own.
+You only need to capture them once (or whenever they stop working).
 
----
+### Step 1 — Prepare your secondary Facebook account
 
-**Read the guide. Run the bot. Post your wins.**
+1. Open a **regular browser** (not incognito — you need cookies to persist).
+2. Log into your secondary Facebook account.
+3. Navigate to `https://www.facebook.com/marketplace/`.
+4. Open **DevTools** (F12 on Windows/Linux, Cmd+Option+I on Mac).
+5. Click the **Network** tab.
+6. Click the **Clear** button (🚫 icon) to remove existing requests.
+
+### Step 2 — Capture the Search doc_id and variables
+
+You may need to navigate through multiple search pages before Facebook fires the right query. Do not refresh the page — navigate using links.
+
+1. In the same browser, go to a fresh Marketplace search URL. Example:
+   ```
+   https://www.facebook.com/marketplace/search/?query=iphone
+   ```
+2. Back in DevTools → Network, type `graphql` in the filter box.
+3. Look for a POST request whose **Name** column shows `graphql` and whose payload contains `CometMarketplaceSearchContentContainerQuery`. To check: click the request → **Payload** tab → search for `CometMarketplaceSearchContentContainerQuery` in the `fb4a_req`, `x-fb-friendly-name`, or `doc_id` fields.
+
+   > **Important:** There are multiple search-related queries. You specifically want `CometMarketplaceSearchContentContainerQuery`, **not** `CometMarketplaceSearchContentPaginationQuery`. The Pagination variant uses a different variable shape and will fail with error `1675012`.
+
+4. If you do not see it yet, click another search result or click into a category on Marketplace and check again. Sometimes it fires on the second navigation, not the first.
+
+5. Once you find the right request:
+   - Click it → **Payload** tab → **view source** (or "view URL-encoded").
+   - Copy everything (Ctrl+A → Ctrl+C).
+
+6. Paste the entire copied blob into the **Facebook Search Variables** field in Settings. The app strips everything else and pulls out the `doc_id` and `variables` for you — you do not need to clean it up.
+
+   Alternatively, if you only want the `doc_id` value:
+   - In the same Payload view, find `doc_id` (it will be a 16–18 digit number like `26533620642955534`).
+   - Copy just the number and paste it into the **Facebook Search doc_id** field.
+
+### Step 3 — Capture the Detail doc_id and variables
+
+1. While still on Marketplace, click any individual listing (do not open a new tab — click from within Marketplace so the page transition fires a GraphQL request).
+2. In DevTools Network, look for a POST whose payload contains `MarketplacePDPContainerQuery`.
+3. Once you find it, copy the Payload source and paste it into **Facebook Detail Variables** in Settings.
+   Or copy just the `doc_id` number into **Facebook Detail doc_id**.
+
+### Step 4 — Save and restart
+
+1. In the app, open the **Settings** tab.
+2. Scroll to the **Facebook** section.
+3. Paste your captured values into the matching fields:
+   - **Facebook Search doc_id** — the 16–18 digit number for the search query
+   - **Facebook Search Variables** — the full POST body or just the JSON `variables` blob
+   - **Facebook Detail doc_id** — the 16–18 digit number for the detail query
+   - **Facebook Detail Variables** — the full POST body or just the JSON `variables` blob
+4. Click **Save Shared Settings**.
+5. Fully quit and relaunch the app (Cmd+Q on Mac, close from taskbar on Windows) to ensure the new config is loaded.
+6. Start the Facebook bot. Logs should now show the configured doc_id being used.
+
+### Paste formats that work
+
+The fields accept any of the following — you do not need to clean up what you paste:
+
+- Just the doc_id number: `26533620642955534`
+- With prefix: `doc_id=26533620642955534`
+- JSON style: `"doc_id":"26533620642955534"`
+- Full URL-encoded POST body (everything from the Payload "view source" tab)
+- Decoded JSON: `{"buyLocation":{...},"params":{...},...}`
+
+### How often to refresh
+
+When Facebook rotates their query IDs (usually every few weeks), the bot will start logging `All doc_id candidates failed` again. Repeat the steps above and paste the new values. The whole process takes about 5 minutes.
+
+## Proxies
+
+Marketplace sites rate-limit aggressively. If you see repeated `429`, `403`, Facebook `1675004`, or straight request failures, add proxies.
+
+Recommended provider: [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7). I really recommend this one because they are extremely good, and in my testing I do not get rate limited nearly as much when using them.
+
+This is an affiliate link, but it helps keep this project free, which was the original plan for the community version.
+
+Use either:
+
+- **Proxy URL** for one proxy.
+- **Proxy Pool** for multiple proxies, one per line.
+
+Format:
+
+```text
+http://user:pass@host:port
+```
+
+Proxy wiring is currently different by bot:
+
+- Cars use the proxy fields under Cars -> Config -> Quick Settings.
+- Facebook uses the same desktop proxy environment that is created from the car config proxy field.
+- Vinted uses the top-level Settings proxy and proxy pool fields.
+- Wallapop mainly relies on polling/backoff right now; if it starts rate-limiting, raise the poll interval first.
+
+## Reset Memory
+
+Reset Memory only affects the car scanner. It wipes:
+
+- Car found listings
+- Car rejected log
+- Car seen-ID cache
+
+Use it when you want the car scanner to re-process listings it has already seen. It does not wipe shared Facebook, Wallapop, or Vinted found files.
+
+## Troubleshooting
+
+| Problem | What to check |
+| --- | --- |
+| No shared deals appear | Open the platform tab, confirm the bot is running, confirm the target has that platform checked, and check logs. |
+| Found Listings is empty | Make sure at least one platform chip is enabled and filters are not hiding everything. |
+| Facebook logs `All doc_id candidates failed` or `1675012` | Facebook rotated its GraphQL query IDs. Capture fresh tokens from a secondary FB account (see **Facebook GraphQL Token Setup** above) and paste them into Settings. |
+| Facebook bot runs but returns zero listings | Same as above — stale doc_id. Also check that your targets have `facebook` enabled in the Watchlist. |
+| Facebook fails or rate-limits | Log into Facebook again if prompted, then add a proxy if errors continue. I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) for longer runs. |
+| Wallapop returns repeated errors | Check target price/radius settings, then add a proxy or increase the poll interval. |
+| Vinted returns 403/429 | Refresh the Vinted cookie and User-Agent, slow the poll interval, and consider [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) if you keep getting rate-limited. |
+| Discord does not post | Verify webhook URLs, make sure the grade matches the route, and confirm Discord alerts are not blocked by network settings. |
+| Save does nothing | Watch for the green side notification. If it does not appear, check Logs or reload Settings. |
+| Amber location banner will not clear | You have not saved a valid latitude and longitude yet. Fill both fields in Settings and click **Save Shared Settings**. |
+| Vinted refuses to start | Confirm you picked a country in **Settings → Vinted Country**. The Log tab will say `No Vinted country selected` until you do. |
+| App will not open on macOS ("could not verify") | Drag the app into `/Applications` first, then run `xattr -cr "/Applications/FBM Sniper Community.app"`. If it still blocks, approve it in **System Settings → Privacy & Security → Open Anyway**. |
+| App will not open on Windows (double-click does nothing) | Open `%APPDATA%\FBM Sniper Community\startup-error.log` and share the stack trace in `#questions`. The log is written whenever the app fails to boot. |
+
+## Developer Commands
+
+Most users do not need these. If running from source:
+
+```bash
+npm install
+npm run seed
+npm run desktop
+```
+
+Useful commands:
+
+```bash
+npm run ui
+npm run scan
+npm run scan:test
+npm run check
+npm run build:all
+```
+
+On Apple Silicon, local Windows packaging needs `makensis`:
+
+```bash
+brew install makensis
+```
+
+## Data Files
+
+When running from source, data is under `data/`:
+
+```text
+data/config.json
+data/watchlist.json
+data/found_listings.ndjson
+data/rejected_listings.csv
+data/seen_ids.json
+data/shared-marketplace/config.json
+data/shared-marketplace/watchlist.json
+data/facebook/found.ndjson
+data/wallapop/found.ndjson
+data/vinted/found.ndjson
+```
+
+In the packaged app, the same files are stored in your operating system app-data folder.
+
+## Best Workflow
+
+1. Open Settings and paste your latitude/longitude (required), pick your Vinted country (required if you want Vinted), then set proxies, Discord webhooks, and poll intervals. If you need proxies, I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) because they have been the most reliable in my testing.
+2. Open Watchlist and confirm each shared target is enabled on the right platforms.
+3. Start one bot first, not all four.
+4. Watch logs for a full cycle.
+5. Open Found Listings and review hits.
+6. Tighten `mustAvoid`, aliases, and price bands.
+7. Add more platforms once the first one is stable.
+
+Read the guide, start small, tune one variable at a time, and post good flips in Discord.
