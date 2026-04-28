@@ -132,3 +132,25 @@ test("buildSharedDealCard labels the source platform on found cards", () => {
   assert.match(html, /Wallapop/);
   assert.match(html, /Found Listing/);
 });
+
+test("sharedConfigNeedsLocationReview keeps banner visible for unconfirmed Dallas starter", () => {
+  const sharedConfigNeedsLocationReview = extractFunction("sharedConfigNeedsLocationReview");
+
+  assert.equal(sharedConfigNeedsLocationReview({
+    location: {
+      label: "Dallas, TX",
+      latitude: 32.7767,
+      longitude: -96.797,
+      confirmed: false,
+    },
+  }), true);
+
+  assert.equal(sharedConfigNeedsLocationReview({
+    location: {
+      label: "Austin, TX",
+      latitude: 30.2672,
+      longitude: -97.7431,
+      confirmed: true,
+    },
+  }), false);
+});

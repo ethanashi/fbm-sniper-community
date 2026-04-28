@@ -62,7 +62,7 @@ The Windows build is unsigned, so SmartScreen may show a warning. Click **More i
 ## First launch
 
 1. Open the app.
-2. **Set your location** in the `Settings` tab (city label + latitude/longitude). None of the snipers will run until you fill this in — the banner at the top of the app reminds you.
+2. **Review your location** in the `Settings` tab. Dallas, TX is only the starter location; change it to your real search city, or save it to confirm Dallas. The banner stays up until this is done.
 3. If you plan to use the `Vinted` bot, pick your country from the **Vinted Country** dropdown in Settings (or in the Vinted tab's inline settings strip).
 4. Log into Facebook in the browser window if you plan to use the `Cars` or `Facebook` bot.
 5. Review the shared watchlist, bot toggles, and polling intervals.

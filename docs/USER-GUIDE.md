@@ -1,4 +1,4 @@
-# FBM Sniper Community v2 User Guide
+# FBM Sniper Community v2 User Guide (v2.0.3)
 
 FBM Sniper Community is a local desktop app for watching marketplace deals across:
 
@@ -25,9 +25,9 @@ Download the latest release from GitHub:
 
 | Platform | File |
 | --- | --- |
-| Apple Silicon Mac | `FBM.Sniper.Community-2.0.1-arm64.dmg` |
-| Intel Mac | `FBM.Sniper.Community-2.0.1.dmg` |
-| Windows x64 | `FBM.Sniper.Community.Setup.2.0.1.exe` |
+| Apple Silicon Mac | `FBM.Sniper.Community-2.0.3-arm64.dmg` |
+| Intel Mac | `FBM.Sniper.Community-2.0.3.dmg` |
+| Windows x64 | `FBM.Sniper.Community.Setup.2.0.3.exe` |
 
 On macOS, open the `.dmg` and **drag the app into Applications first**. Do not launch it from inside the DMG — macOS will apply stricter quarantine rules to apps running from a mounted disk image and you will hit the "could not verify" block on every launch.
 
@@ -177,6 +177,7 @@ It includes:
 
 - Proxy URL
 - Proxy Pool
+- Recommended proxy provider: [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7)
 - Latitude and longitude (required — coords only, no label)
 - Include photos in Discord alerts
 - Max photos per alert
@@ -186,6 +187,7 @@ It includes:
 - Discord webhook for Buy Now deals
 - Discord webhook for Maybe deals
 - Per-bot poll intervals
+- **Facebook GraphQL token fields** — Search doc_id, Search Variables, Detail doc_id, Detail Variables (see **Facebook GraphQL Token Setup** below for how to capture these)
 - **Vinted country** (required before the Vinted bot will start)
 - Vinted cookie and User-Agent
 - Raw shared watchlist JSON
@@ -364,9 +366,99 @@ A cookie is optional — the bot tries an automatic cookie flow first. Paste one
 
 The cookie and User-Agent should come from the same browser session on the same country domain. Mixing a `.fr` cookie with a `.es` country selection will fail.
 
+## Facebook GraphQL Token Setup
+
+> **Use a secondary Facebook account — not your real one.** Facebook may flag or restrict accounts used for automated marketplace scraping. This has not been confirmed as a permanent ban trigger, but it is safer to use a throwaway or alternate account. Do not log into your personal Facebook account in the bot's browser.
+
+The Facebook bot connects to Marketplace using Facebook's internal GraphQL API. The API requires a `doc_id` — a server-side query identifier — plus a matching `variables` payload that tells Facebook the shape of the request. These tokens expire and get rotated by Facebook, so if the bot stops returning listings you will need to refresh them.
+
+### Signs you need to refresh
+
+- Bot logs show `All doc_id candidates failed`
+- Logs show `doc_id was not found` or `missing_required_variable_value (1675012)`
+- The bot runs without errors but returns zero listings every cycle
+
+### What you need to capture
+
+There are two queries to capture: one for **search** (the main listing feed) and one for **detail** (individual listing pages). Each one needs its own `doc_id` and optionally a `variables` blob.
+
+You only need to capture them once (or whenever they stop working).
+
+### Step 1 — Prepare your secondary Facebook account
+
+1. Open a **regular browser** (not incognito — you need cookies to persist).
+2. Log into your secondary Facebook account.
+3. Navigate to `https://www.facebook.com/marketplace/`.
+4. Open **DevTools** (F12 on Windows/Linux, Cmd+Option+I on Mac).
+5. Click the **Network** tab.
+6. Click the **Clear** button (🚫 icon) to remove existing requests.
+
+### Step 2 — Capture the Search doc_id and variables
+
+You may need to navigate through multiple search pages before Facebook fires the right query. Do not refresh the page — navigate using links.
+
+1. In the same browser, go to a fresh Marketplace search URL. Example:
+   ```
+   https://www.facebook.com/marketplace/search/?query=iphone
+   ```
+2. Back in DevTools → Network, type `graphql` in the filter box.
+3. Look for a POST request whose **Name** column shows `graphql` and whose payload contains `CometMarketplaceSearchContentContainerQuery`. To check: click the request → **Payload** tab → search for `CometMarketplaceSearchContentContainerQuery` in the `fb4a_req`, `x-fb-friendly-name`, or `doc_id` fields.
+
+   > **Important:** There are multiple search-related queries. You specifically want `CometMarketplaceSearchContentContainerQuery`, **not** `CometMarketplaceSearchContentPaginationQuery`. The Pagination variant uses a different variable shape and will fail with error `1675012`.
+
+4. If you do not see it yet, click another search result or click into a category on Marketplace and check again. Sometimes it fires on the second navigation, not the first.
+
+5. Once you find the right request:
+   - Click it → **Payload** tab → **view source** (or "view URL-encoded").
+   - Copy everything (Ctrl+A → Ctrl+C).
+
+6. Paste the entire copied blob into the **Facebook Search Variables** field in Settings. The app strips everything else and pulls out the `doc_id` and `variables` for you — you do not need to clean it up.
+
+   Alternatively, if you only want the `doc_id` value:
+   - In the same Payload view, find `doc_id` (it will be a 16–18 digit number like `26533620642955534`).
+   - Copy just the number and paste it into the **Facebook Search doc_id** field.
+
+### Step 3 — Capture the Detail doc_id and variables
+
+1. While still on Marketplace, click any individual listing (do not open a new tab — click from within Marketplace so the page transition fires a GraphQL request).
+2. In DevTools Network, look for a POST whose payload contains `MarketplacePDPContainerQuery`.
+3. Once you find it, copy the Payload source and paste it into **Facebook Detail Variables** in Settings.
+   Or copy just the `doc_id` number into **Facebook Detail doc_id**.
+
+### Step 4 — Save and restart
+
+1. In the app, open the **Settings** tab.
+2. Scroll to the **Facebook** section.
+3. Paste your captured values into the matching fields:
+   - **Facebook Search doc_id** — the 16–18 digit number for the search query
+   - **Facebook Search Variables** — the full POST body or just the JSON `variables` blob
+   - **Facebook Detail doc_id** — the 16–18 digit number for the detail query
+   - **Facebook Detail Variables** — the full POST body or just the JSON `variables` blob
+4. Click **Save Shared Settings**.
+5. Fully quit and relaunch the app (Cmd+Q on Mac, close from taskbar on Windows) to ensure the new config is loaded.
+6. Start the Facebook bot. Logs should now show the configured doc_id being used.
+
+### Paste formats that work
+
+The fields accept any of the following — you do not need to clean up what you paste:
+
+- Just the doc_id number: `26533620642955534`
+- With prefix: `doc_id=26533620642955534`
+- JSON style: `"doc_id":"26533620642955534"`
+- Full URL-encoded POST body (everything from the Payload "view source" tab)
+- Decoded JSON: `{"buyLocation":{...},"params":{...},...}`
+
+### How often to refresh
+
+When Facebook rotates their query IDs (usually every few weeks), the bot will start logging `All doc_id candidates failed` again. Repeat the steps above and paste the new values. The whole process takes about 5 minutes.
+
 ## Proxies
 
 Marketplace sites rate-limit aggressively. If you see repeated `429`, `403`, Facebook `1675004`, or straight request failures, add proxies.
+
+Recommended provider: [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7). I really recommend this one because they are extremely good, and in my testing I do not get rate limited nearly as much when using them.
+
+This is an affiliate link, but it helps keep this project free, which was the original plan for the community version.
 
 Use either:
 
@@ -402,9 +494,11 @@ Use it when you want the car scanner to re-process listings it has already seen.
 | --- | --- |
 | No shared deals appear | Open the platform tab, confirm the bot is running, confirm the target has that platform checked, and check logs. |
 | Found Listings is empty | Make sure at least one platform chip is enabled and filters are not hiding everything. |
-| Facebook fails or rate-limits | Log into Facebook again if prompted, then add a proxy if errors continue. |
+| Facebook logs `All doc_id candidates failed` or `1675012` | Facebook rotated its GraphQL query IDs. Capture fresh tokens from a secondary FB account (see **Facebook GraphQL Token Setup** above) and paste them into Settings. |
+| Facebook bot runs but returns zero listings | Same as above — stale doc_id. Also check that your targets have `facebook` enabled in the Watchlist. |
+| Facebook fails or rate-limits | Log into Facebook again if prompted, then add a proxy if errors continue. I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) for longer runs. |
 | Wallapop returns repeated errors | Check target price/radius settings, then add a proxy or increase the poll interval. |
-| Vinted returns 403/429 | Refresh the Vinted cookie and User-Agent, then slow the poll interval. |
+| Vinted returns 403/429 | Refresh the Vinted cookie and User-Agent, slow the poll interval, and consider [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) if you keep getting rate-limited. |
 | Discord does not post | Verify webhook URLs, make sure the grade matches the route, and confirm Discord alerts are not blocked by network settings. |
 | Save does nothing | Watch for the green side notification. If it does not appear, check Logs or reload Settings. |
 | Amber location banner will not clear | You have not saved a valid latitude and longitude yet. Fill both fields in Settings and click **Save Shared Settings**. |
@@ -459,7 +553,7 @@ In the packaged app, the same files are stored in your operating system app-data
 
 ## Best Workflow
 
-1. Open Settings and paste your latitude/longitude (required), pick your Vinted country (required if you want Vinted), then set proxies, Discord webhooks, and poll intervals.
+1. Open Settings and paste your latitude/longitude (required), pick your Vinted country (required if you want Vinted), then set proxies, Discord webhooks, and poll intervals. If you need proxies, I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) because they have been the most reliable in my testing.
 2. Open Watchlist and confirm each shared target is enabled on the right platforms.
 3. Start one bot first, not all four.
 4. Watch logs for a full cycle.

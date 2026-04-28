@@ -8,8 +8,10 @@ const sniperPath = path.resolve("lib/wallapop-sniper.js");
 const source = fs.readFileSync(sniperPath, "utf8");
 
 function extractFunction(name, context = {}) {
-  const marker = `async function ${name}(`;
-  const start = source.indexOf(marker);
+  const asyncMarker = `async function ${name}(`;
+  const syncMarker = `function ${name}(`;
+  let start = source.indexOf(asyncMarker);
+  if (start === -1) start = source.indexOf(syncMarker);
   assert.notEqual(start, -1, `Could not find ${name} in ${sniperPath}`);
 
   const braceStart = source.indexOf("{", start);
@@ -29,6 +31,15 @@ function extractFunction(name, context = {}) {
   const fnSource = source.slice(start, end);
   return vm.runInNewContext(`(${fnSource})`, context);
 }
+
+test("isSupportedWallapopLocation rejects coordinates outside Wallapop markets", () => {
+  const isSupportedWallapopLocation = extractFunction("isSupportedWallapopLocation");
+
+  assert.equal(isSupportedWallapopLocation({ latitude: 45.523064, longitude: -122.676483 }), false);
+  assert.equal(isSupportedWallapopLocation({ latitude: 40.4032, longitude: -3.7037 }), true);
+  assert.equal(isSupportedWallapopLocation({ latitude: 38.7223, longitude: -9.1393 }), true);
+  assert.equal(isSupportedWallapopLocation({ latitude: 41.9028, longitude: 12.4964 }), true);
+});
 
 test("runQuery preserves base radius when target radius is null", async () => {
   let receivedCfg = null;

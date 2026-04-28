@@ -138,7 +138,7 @@ const DEFAULT_SHARED_CONFIG = {
     },
   },
   bots: {
-    facebook: { pollIntervalSec: 90 },
+    facebook: { pollIntervalSec: 90, searchDocId: "", detailDocId: "", searchVariables: "", detailVariables: "" },
     wallapop: { pollIntervalSec: 60 },
     vinted: { pollIntervalSec: 45, cookie: "", userAgent: "", domain: "" },
   },
@@ -792,6 +792,7 @@ function renderMarketplaceTab(platform) {
             <span class="sniper-setting-unit">s</span>
           </div>
           ${platform === "vinted" ? buildVintedExtraSettings(botConfig) : ""}
+          ${platform === "facebook" ? buildFacebookExtraSettings(botConfig) : ""}
           <div class="sniper-setting-item">
             <button class="btn btn-secondary btn-sm" onclick="applyBotSettings('${platform}')">Apply</button>
             <span class="sniper-setting-hint">Takes effect on next Start</span>
@@ -852,6 +853,31 @@ function renderMarketplaceTab(platform) {
   flushSniperTerminal(meta.process);
 }
 
+function buildFacebookExtraSettings(botConfig) {
+  const searchDocId = botConfig.searchDocId || "";
+  const detailDocId = botConfig.detailDocId || "";
+  const searchVariables = botConfig.searchVariables || "";
+  const detailVariables = botConfig.detailVariables || "";
+  return `
+    <div class="sniper-setting-item sniper-setting-cookie">
+      <label for="sniper-facebook-search-doc">Search doc_id</label>
+      <input type="text" id="sniper-facebook-search-doc" placeholder="Paste CometMarketplaceSearchContentContainerQuery doc_id (any shape — bare number, doc_id=..., JSON)" autocomplete="off" value="${escAttr(searchDocId)}" />
+    </div>
+    <div class="sniper-setting-item sniper-setting-cookie">
+      <label for="sniper-facebook-search-vars">Search variables (full POST body)</label>
+      <textarea id="sniper-facebook-search-vars" class="quick-input quick-textarea" rows="4" placeholder="Paste the entire form body from DevTools → that POST → Payload → 'view source'. Must contain variables=... — sanitizer extracts the JSON automatically.">${escHtml(searchVariables)}</textarea>
+    </div>
+    <div class="sniper-setting-item sniper-setting-cookie">
+      <label for="sniper-facebook-detail-doc">Detail doc_id</label>
+      <input type="text" id="sniper-facebook-detail-doc" placeholder="Paste MarketplacePDPContainerQuery doc_id (any shape)" autocomplete="off" value="${escAttr(detailDocId)}" />
+    </div>
+    <div class="sniper-setting-item sniper-setting-cookie">
+      <label for="sniper-facebook-detail-vars">Detail variables (full POST body)</label>
+      <textarea id="sniper-facebook-detail-vars" class="quick-input quick-textarea" rows="4" placeholder="Paste the form body of any MarketplacePDPContainerQuery POST (DevTools → click any listing → Network → that POST → Payload → 'view source'). The scraper rewrites listingID per item.">${escHtml(detailVariables)}</textarea>
+    </div>
+  `;
+}
+
 function buildVintedExtraSettings(botConfig) {
   const cookie = botConfig.cookie || "";
   const ua = botConfig.userAgent || "";
@@ -887,6 +913,15 @@ async function applyBotSettings(platform) {
     nextBot.cookie = document.getElementById("sniper-vinted-cookie")?.value.trim() || "";
     nextBot.userAgent = document.getElementById("sniper-vinted-ua")?.value.trim() || "";
     nextBot.domain = document.getElementById("sniper-vinted-domain")?.value.trim() || "";
+  }
+  if (platform === "facebook") {
+    // We store the raw paste — sanitization happens server-side at use time
+    // (lib/fb-config.js). That way the UI round-trips show what the user
+    // originally pasted, not a stripped digit run.
+    nextBot.searchDocId = document.getElementById("sniper-facebook-search-doc")?.value.trim() || "";
+    nextBot.detailDocId = document.getElementById("sniper-facebook-detail-doc")?.value.trim() || "";
+    nextBot.searchVariables = document.getElementById("sniper-facebook-search-vars")?.value.trim() || "";
+    nextBot.detailVariables = document.getElementById("sniper-facebook-detail-vars")?.value.trim() || "";
   }
   const nextConfig = normalizeSharedConfig({
     ...sharedConfig,
