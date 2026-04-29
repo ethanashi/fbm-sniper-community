@@ -172,7 +172,7 @@ let radarMuted = false;
 const radarChime = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YT9vT18AZmZtZnx+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+');
 
 const FOUND_LISTINGS_META = [
-  ...Object.entries(PLATFORM_META).map(([id, meta]) => ({
+  ...Object.entries(PLATFORM_META).filter(([id]) => id !== 'arbitrage' && id !== 'anomalia').map(([id, meta]) => ({
     id,
     label: meta.label,
     process: meta.process,
@@ -1454,11 +1454,38 @@ function renderMarketplaceTab(platform) {
       ${onboarding}
       <div class="sniper-top">
         ${isMarketplace ? `
-          <div class="quick-target-box" style="margin-bottom: 1rem; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
-            <h4 style="font-size: 0.85rem; text-transform: uppercase; color: var(--muted); margin-bottom: 0.75rem;">🎯 Quick Monitor</h4>
-            <div style="display: flex; gap: 0.75rem;">
-              <input type="text" id="quick-target-input-${platform}" class="quick-input" style="flex: 1" placeholder="Enter item name to search (e.g. iPhone 15 Pro)...">
-              <button class="btn btn-primary" onclick="addQuickTarget('${platform}')">+ Monitor Item</button>
+          <div class="quick-target-box" style="margin-bottom: 1.5rem; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem;">
+            <h4 style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">🎯 Quick Target Monitor</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+              <div class="field-group">
+                <label style="display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.4rem;">Label (Identifier)</label>
+                <input type="text" id="quick-target-input-${platform}" class="quick-input" placeholder="iPhone 15 Pro..." style="width: 100%">
+              </div>
+              <div class="field-group">
+                <label style="display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.4rem;">Search Query (Optional)</label>
+                <input type="text" id="quick-target-query-${platform}" class="quick-input" placeholder="Leave empty for Label..." style="width: 100%">
+              </div>
+              <div class="field-group">
+                <label style="display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.4rem;">Price Range (Min - Max)</label>
+                <div style="display: flex; gap: 0.5rem;">
+                  <input type="number" id="quick-target-minPrice-${platform}" class="quick-input" placeholder="Min" style="width: 50%">
+                  <input type="number" id="quick-target-maxPrice-${platform}" class="quick-input" placeholder="Max" style="width: 50%">
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+              <div class="field-group" style="flex: 1; min-width: 250px;">
+                <label style="display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 0.4rem;">Must Include Keywords (comma separated)</label>
+                <input type="text" id="quick-target-mustInclude-${platform}" class="quick-input" placeholder="256gb, blue, unlocked..." style="width: 100%">
+              </div>
+              <div class="field-group" style="padding-bottom: 0.5rem;">
+                <label class="control control-checkbox" style="font-size: 0.85rem; margin: 0;">
+                  Allow Shipping
+                  <input type="checkbox" id="quick-target-shipping-${platform}" checked>
+                  <div class="control_indicator"></div>
+                </label>
+              </div>
+              <button class="btn btn-primary" style="height: 38px; padding: 0 1.5rem;" onclick="addQuickTarget('${platform}')">+ Activate Target</button>
             </div>
           </div>
         ` : ''}
@@ -1686,27 +1713,32 @@ function buildOnboardingHtml(platform) {
 }
 
 async function addQuickTarget(platform) {
-  const input = document.getElementById(`quick-target-input-${platform}`);
-  const label = input?.value.trim();
+  const label = document.getElementById(`quick-target-input-${platform}`)?.value.trim();
   if (!label) {
     showToast("Please enter an item name.", "err");
     return;
   }
 
+  const query = document.getElementById(`quick-target-query-${platform}`)?.value.trim() || label;
+  const min = parseFloat(document.getElementById(`quick-target-minPrice-${platform}`)?.value);
+  const max = parseFloat(document.getElementById(`quick-target-maxPrice-${platform}`)?.value);
+  const must = document.getElementById(`quick-target-mustInclude-${platform}`)?.value.split(",").map(s => s.trim()).filter(Boolean);
+  const ship = document.getElementById(`quick-target-shipping-${platform}`)?.checked !== false;
+
   const target = {
     id: `quick-${platform}-${Date.now()}`,
     label: label,
-    query: label,
+    query: query,
+    minPrice: isNaN(min) ? null : min,
+    maxPrice: isNaN(max) ? null : max,
+    mustInclude: must,
+    allowShipping: ship,
     group: "Quick Targets",
     enabled: true,
-    product: "general",
+    product: "electronics",
     platforms: [platform],
     aliases: [],
-    mustInclude: [],
     mustAvoid: [],
-    minPrice: null,
-    maxPrice: null,
-    allowShipping: true,
     platformOverrides: {},
   };
 

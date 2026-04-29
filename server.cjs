@@ -1,8 +1,29 @@
 const { createServer } = require("http");
 const { WebSocketServer } = require("ws");
 const { spawn } = require("child_process");
-const fs = require("fs");
 const path = require("path");
+const ROOT = __dirname;
+const DATA_DIR = process.env.FBM_DATA_DIR || path.join(ROOT, "data");
+const PUPPETEER_CACHE_DIR = path.join(DATA_DIR, "puppeteer-cache");
+process.env.PUPPETEER_CACHE_DIR = PUPPETEER_CACHE_DIR;
+
+async function ensureBrowser() {
+  console.log('[server] Checking for browser environment...');
+  return new Promise((resolve) => {
+    const cp = spawn(process.execPath, ['lib/ensure-browser.mjs'], {
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+    });
+    cp.stdout.on('data', (d) => process.stdout.write(d));
+    cp.stderr.on('data', (d) => process.stderr.write(d));
+    cp.on('close', (code) => {
+      if (code === 0) console.log('[server] Browser environment ready.');
+      else console.error('[server] Browser environment setup failed with code ' + code);
+      resolve();
+    });
+  });
+}
+
+const fs = require("fs");
 const url = require("url");
 const crypto = require("crypto");
 
@@ -26,9 +47,7 @@ async function initAnalytics() {
 const MAX_ACTIVE_TARGETS = 10;
 const LIMIT_NOTE = "Max active targets reached (10). Disable a target to enable another.";
 
-const ROOT = __dirname;
 // When packaged via Electron, FBM_DATA_DIR points to app.getPath('userData').
-const DATA_DIR = process.env.FBM_DATA_DIR || path.join(ROOT, "data");
 const UI_DIR = path.join(ROOT, "ui");
 const FOUND_FILE = path.join(DATA_DIR, "found_listings.ndjson");
 const REJECTED_FILE = path.join(DATA_DIR, "rejected_listings.csv");
@@ -980,6 +999,7 @@ wss.on("connection", (ws) => {
 
 async function startServer(port) {
   await initWorkspace();
+  await ensureBrowser();
   return new Promise((resolve, reject) => {
     server.on("error", (e) => reject(e));
     server.listen(port || 0, "127.0.0.1", () => {
