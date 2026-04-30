@@ -364,6 +364,10 @@ function setActiveTopTab(tab) {
     loadFoundListingsDashboard();
     return;
   }
+  if (tab === "spot-arbitrage") {
+    initRadarChart();
+    return;
+  }
   if (tab === "analytics") {
     refreshAnalytics();
     return;
@@ -1045,11 +1049,48 @@ async function copyToClipboard(text, btn) {
   }
 }
 
+
+/**
+ * TradingView Advanced Widget Fallback
+ * Injects the official TV script and replaces the container with a full-featured widget.
+ */
+function triggerTradingViewFallback(containerId, symbol = "BINANCE:BTCUSDT") {
+  console.log(`[UI] Triggering TradingView Advanced Fallback for ${containerId} (${symbol})`);
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  // Clear container
+  container.innerHTML = '<div class="loading-tv">Initializing Advanced Engine...</div>';
+
+  const script = document.createElement('script');
+  script.src = 'https://s3.tradingview.com/tv.js';
+  script.async = true;
+  script.onload = () => {
+    if (typeof TradingView !== 'undefined') {
+      new TradingView.widget({
+        "autosize": true,
+        "symbol": symbol,
+        "interval": "D",
+        "timezone": "Etc/UTC",
+        "theme": "dark",
+        "style": "1",
+        "locale": "en",
+        "toolbar_bg": "#f1f3f6",
+        "enable_publishing": false,
+        "allow_symbol_change": true,
+        "container_id": containerId
+      });
+    }
+  };
+  document.head.appendChild(script);
+}
+
 function initRadarChart() {
   const container = document.getElementById('spot-radar-chart');
   if (!container || radarChart) return;
 
-  radarChart = LightweightCharts.createChart(container, {
+  try {
+    radarChart = LightweightCharts.createChart(container, {
     width: container.clientWidth,
     height: 400,
     layout: {
@@ -1068,7 +1109,12 @@ function initRadarChart() {
       secondsVisible: true,
     },
   });
+  } catch (err) {
+    console.error("Lightweight Charts failed to initialize:", err);
+    triggerTradingViewFallback("spot-radar-chart", "BINANCE:BTCUSDT");
+  }
 
+  if (!radarChart) return;
   radarAskSeries = radarChart.addLineSeries({
     color: '#4f7ef8',
     lineWidth: 2,
@@ -1275,24 +1321,32 @@ function initArbitrageChart(platform = 'arbitrage') {
   if (platform === 'arbitrage' && arbitrageChart) return;
   if (platform === 'anomalia' && anomaliaChart) return;
 
-  const chart = LightweightCharts.createChart(container, {
-    width: container.clientWidth,
-    height: 300,
-    layout: {
-      backgroundColor: '#1e222d',
-      textColor: '#d1d4dc',
-    },
-    grid: {
-      vertLines: { color: '#334158' },
-      horzLines: { color: '#334158' },
-    },
-    timeScale: {
-      timeVisible: true,
-      secondsVisible: true,
-    },
-  });
+  let chart;
+  try {
+    chart = LightweightCharts.createChart(container, {
+      width: container.clientWidth,
+      height: 300,
+      layout: {
+        backgroundColor: '#1e222d',
+        textColor: '#d1d4dc',
+      },
+      grid: {
+        vertLines: { color: '#334158' },
+        horzLines: { color: '#334158' },
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: true,
+      },
+    });
+  } catch (err) {
+    console.error("Arbitrage chart failed:", err);
+    triggerTradingViewFallback(containerId, "CURRENCYCOM:USDTCOP");
+    return;
+  }
 
   const colors = ['#2196f3', '#ff9800', '#4caf50', '#f44336', '#9c27b0'];
+
   const spreadSeries = {};
 
   let destinations = (sharedConfig.filters?.arbitrageDestinations || 'ARS,VES,MXN,BRL').split(',');
@@ -1523,6 +1577,7 @@ function renderMarketplaceTab(platform) {
       <div class="sniper-body">
         ${(platform === 'arbitrage' || platform === 'anomalia') ? `
           <div class="tools-panel" style="flex-wrap: wrap; height: auto; gap: 1rem;">
+            <button class="btn btn-secondary btn-sm" onclick="triggerTradingViewFallback('${platform}-chart-container', 'CURRENCYCOM:USDTCOP')" style="position: absolute; right: 2rem; top: 1rem;">Chart Fallback</button>
             <div class="tool-group" style="background: rgba(0,0,0,0.2); padding: 0.5rem 1rem; border-radius: 6px;">
               <span class="tool-label">Capital (USD)</span>
               <input type="number" id="arbitrage-capital-${platform}" class="quick-input" style="width: 100px;" value="1000" onchange="renderMarketplaceTab('${platform}')">
