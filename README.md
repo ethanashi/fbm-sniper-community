@@ -83,7 +83,7 @@ This application functions as a comprehensive monitoring dashboard and automated
 5.  **Initial Configuration:**
     *   Go to the **Config** tab in the dashboard.
     *   Set your **Latitude/Longitude** for marketplace radius searches.
-    *   (Optional) Configure **Discord Webhooks** for remote notifications.
+
     *   Configure your **Arbitrage Fiat Pairs** (e.g., Origin: COP, Destinations: ['ARS', 'VES']).
 
 ## License

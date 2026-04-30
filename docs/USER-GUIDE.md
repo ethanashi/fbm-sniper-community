@@ -7,15 +7,7 @@ FBM Sniper Community is a local desktop app for watching marketplace deals acros
 - Wallapop electronics
 - Vinted electronics
 
-The app runs on your computer, stores data locally, and gives you a live dashboard for starting bots, tuning targets, reviewing found listings, and sending optional Discord alerts.
-
-## Join The Discord
-
-If you need help, examples, or target JSON templates, join the community Discord:
-
-**[discord.gg/BkpQSnth4C](https://discord.gg/BkpQSnth4C)**
-
-Use `#how-to-use-bot` for walkthroughs, `#questions` for setup help, and `#best-flips` to share wins.
+The app runs on your computer, stores data locally, and gives you a live dashboard for starting bots, tuning targets, reviewing found listings, and reviewing found listings.
 
 ## Install The App
 
@@ -72,7 +64,7 @@ Everything important is local:
 
 - Your watchlists and settings live in app data.
 - Found listings and seen IDs live in app data.
-- Discord webhooks are optional.
+
 - The app does not require a hosted account or cloud login.
 
 When packaged as Electron, app data is stored in the operating system user-data folder. When running from source, data lives under the repo `data/` folder.
@@ -194,13 +186,13 @@ It includes:
 - Proxy Pool
 - Recommended proxy provider: [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7)
 - Latitude and longitude (required — coords only, no label)
-- Include photos in Discord alerts
+
 - Max photos per alert
 - Browser opening behavior
 - Auto-open Buy Now toggle
-- Discord webhook for all deals
-- Discord webhook for Buy Now deals
-- Discord webhook for Maybe deals
+
+
+
 - Per-bot poll intervals
 - **Vinted country** (required before the Vinted bot will start)
 - Vinted cookie and User-Agent
@@ -350,18 +342,6 @@ For cars:
 | `Maybe` | Worth reviewing or sending a low offer. |
 | `Pass` | Rejected or not enough edge. |
 
-## Discord Alerts
-
-Discord is optional. If all webhook fields are blank, the app still runs normally.
-
-In Settings, you can set:
-
-- **All Deals Webhook** for every graded deal.
-- **Buy Now Webhook** for grades `A` and `B`.
-- **Maybe Webhook** for grades `C` and `D`.
-
-You can also choose whether alerts include photos and how many photos to attach.
-
 ## Vinted Country And Cookie Setup
 
 Before Vinted can run, pick your country from the **Vinted Country** dropdown in Settings (or in the inline strip on the Vinted tab). The bot uses the matching domain, locale, and referer for every request.
@@ -425,7 +405,6 @@ Use it when you want the car scanner to re-process listings it has already seen.
 | Facebook fails or rate-limits | Log into Facebook again if prompted, then add a proxy if errors continue. I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) for longer runs. |
 | Wallapop returns repeated errors | Check target price/radius settings, then add a proxy or increase the poll interval. |
 | Vinted returns 403/429 | Refresh the Vinted cookie and User-Agent, slow the poll interval, and consider [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) if you keep getting rate-limited. |
-| Discord does not post | Verify webhook URLs, make sure the grade matches the route, and confirm Discord alerts are not blocked by network settings. |
 | Save does nothing | Watch for the green side notification. If it does not appear, check Logs or reload Settings. |
 | Amber location banner will not clear | You have not saved a valid latitude and longitude yet. Fill both fields in Settings and click **Save Shared Settings**. |
 | Vinted refuses to start | Confirm you picked a country in **Settings → Vinted Country**. The Log tab will say `No Vinted country selected` until you do. |
@@ -479,7 +458,7 @@ In the packaged app, the same files are stored in your operating system app-data
 
 ## Best Workflow
 
-1. Open Settings and paste your latitude/longitude (required), pick your Vinted country (required if you want Vinted), then set proxies, Discord webhooks, and poll intervals. If you need proxies, I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) because they have been the most reliable in my testing.
+1. Open Settings and paste your latitude/longitude (required), pick your Vinted country (required if you want Vinted), then set proxies and poll intervals. If you need proxies, I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) because they have been the most reliable in my testing.
 2. Open Watchlist and confirm each shared target is enabled on the right platforms.
 3. Start one bot first, not all four.
 4. Watch logs for a full cycle.
@@ -487,4 +466,4 @@ In the packaged app, the same files are stored in your operating system app-data
 6. Tighten `mustAvoid`, aliases, and price bands.
 7. Add more platforms once the first one is stable.
 
-Read the guide, start small, tune one variable at a time, and post good flips in Discord.
+Read the guide, start small, tune one variable at a time, and post good flips.
