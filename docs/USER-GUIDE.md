@@ -49,7 +49,7 @@ Download the latest release from GitHub:
 Use the file that matches your computer:
 
 | Platform | Release file |
-| --- | --- |
+| -------- | ------------ |
 | Apple Silicon Mac (M1/M2/M3/M4) | `FBM.Sniper.Community-2.0.4-arm64.dmg` |
 | Intel Mac | `FBM.Sniper.Community-2.0.4.dmg` |
 | Windows x64 | `FBM.Sniper.Community.Setup.2.0.4.exe` |
@@ -139,11 +139,11 @@ The app uses latitude and longitude, not city names. A city label does nothing b
 Examples:
 
 | City | Latitude | Longitude |
-| --- | ---: | ---: |
-| Dallas, TX | `32.7767` | `-96.7970` |
-| Phoenix, AZ | `33.4484` | `-112.0740` |
-| San Francisco, CA | `37.7749` | `-122.4194` |
-| Madrid, Spain | `40.4168` | `-3.7038` |
+| ---- | -------- | --------- |
+| Dallas, TX | 32.7767 | -96.7970 |
+| Phoenix, AZ | 33.4484 | -112.0740 |
+| San Francisco, CA | 37.7749 | -122.4194 |
+| Madrid, Spain | 40.4168 | -3.7038 |
 
 To find coordinates:
 
@@ -179,7 +179,7 @@ You can also paste only the number if you already know it. The field must contai
 Examples of city IDs you can use directly if you do not want to look yours up:
 
 | City | Marketplace URL |
-| --- | --- |
+| ---- | --------------- |
 | Des Moines, IA | `https://www.facebook.com/marketplace/113132795367102/` |
 | Lagos, Nigeria | `https://www.facebook.com/marketplace/106265246077413/` |
 
@@ -394,7 +394,7 @@ Basic example:
 Important fields:
 
 | Field | Meaning |
-| --- | --- |
+| ----- | ------- |
 | `id` | Stable unique ID. |
 | `label` | Name shown in the dashboard. |
 | `group` | UI bucket for filters. |
@@ -461,7 +461,7 @@ Car fields control underwriting:
 Shared marketplace grades:
 
 | Grade | Meaning |
-| --- | --- |
+| ----- | ------- |
 | `A` | Strong deal. |
 | `B` | Good deal. |
 | `C` | Fair, worth checking. |
@@ -472,7 +472,7 @@ Shared marketplace grades:
 Car verdicts:
 
 | Verdict | Meaning |
-| --- | --- |
+| ------- | ------- |
 | `Buy Now` | Strong enough spread and acceptable risk. |
 | `Maybe` | Review manually or send a lower offer. |
 | `Pass` | Rejected by rules or underwriting. |
@@ -525,7 +525,7 @@ It does not wipe shared Facebook, Wallapop, Vinted, or Mercari found files.
 ## Troubleshooting
 
 | Problem | What to do |
-| --- | --- |
+| ------- | ---------- |
 | App will not open on macOS | Move it to Applications, then run `xattr -cr "/Applications/FBM Sniper Community.app"`. |
 | Windows SmartScreen blocks install | Click **More info** then **Run anyway**. |
 | Amber location banner stays visible | Save valid latitude and longitude in Settings. |
