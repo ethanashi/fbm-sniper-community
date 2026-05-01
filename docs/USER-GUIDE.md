@@ -2,14 +2,14 @@
 
 FBM Sniper Community is a local desktop app for watching marketplace deals across:
 
-- Cars on Facebook Marketplace
+- Marketplace on Facebook Marketplace
 - Facebook Marketplace electronics
-- Wallapop electronics
+
 - Vinted electronics
 
 The app runs on your computer, stores data locally, and gives you a live dashboard for starting bots, tuning targets, reviewing found listings, and reviewing found listings.
 
-## Install The App
+ Install The App
 
 Download the latest release from GitHub:
 
@@ -49,7 +49,7 @@ xattr -cr "/Applications/FBM Sniper Community.app"
 4. Follow the installation wizard
 5. The app will open after installation
 
-On first launch, the app opens immediately and downloads Puppeteer Chrome into app data in the background. This is a one-time setup of about 150 MB. The dashboard is usable right away; the Chrome-powered bots (Cars, Facebook) will wait for the download before they can start.
+On first launch, the app opens immediately and downloads Puppeteer Chrome into app data in the background. This is a one-time setup of about 150 MB. The dashboard is usable right away; the Chrome-powered bots (Marketplace, Facebook) will wait for the download before they can start.
 
 ### System Requirements
 
@@ -73,11 +73,11 @@ When packaged as Electron, app data is stored in the operating system user-data 
 
 The top navigation has eight main areas.
 
-### Cars
+### Marketplace
 
-The Cars tab keeps the original Facebook Marketplace car workflow in one place.
+The Marketplace tab keeps the original Facebook Marketplace car workflow in one place.
 
-Use the Cars sub-tabs:
+Use the Marketplace sub-tabs:
 
 - **Overview** shows scanner stats and the car scanner process card.
 - **Watchlist** manages car targets with the 10-active-target limit.
@@ -85,7 +85,7 @@ Use the Cars sub-tabs:
 - **Rejected** shows listings the car scanner skipped and why.
 - **Config** contains quick settings, raw car config JSON, raw car target JSON, and Reset Memory.
 
-Cars use dollar-based underwriting fields such as estimated retail, max buy, margin, fees reserve, recon reserve, title status, mileage, and risk score.
+Marketplace use dollar-based underwriting fields such as estimated retail, max buy, margin, fees reserve, recon reserve, title status, mileage, and risk score.
 
 ### Facebook
 
@@ -101,19 +101,19 @@ You can:
 
 Facebook uses the shared Watchlist and shared Settings.
 
-### Wallapop
+### Marketplace Snipers
 
-The Wallapop tab controls the shared Wallapop electronics sniper.
+The Marketplace tab controls the shared Marketplace electronics sniper.
 
 You can:
 
-- Start or stop the Wallapop bot.
-- Set the Wallapop poll interval.
-- Review live Wallapop hits with photos.
+- Start or stop the Marketplace bot.
+- Set the Marketplace poll interval.
+- Review live Marketplace hits with photos.
 - Filter by grade.
-- Watch Wallapop logs in the same tab.
+- Watch Marketplace logs in the same tab.
 
-Wallapop uses the shared Watchlist and shared Settings. Targets can override Wallapop min and max price separately from Facebook or Vinted.
+Marketplace uses the shared Watchlist and shared Settings. Targets can override Marketplace min and max price separately from Facebook or Vinted.
 
 ### Vinted
 
@@ -137,9 +137,9 @@ The cookie should include `access_token_web=...` **from the same country domain 
 
 Found Listings is the combined live feed. It merges:
 
-- Cars
+- Marketplace
 - Facebook
-- Wallapop
+- Marketplace
 - Vinted
 
 Use it when you want one real-time deal board instead of switching tabs.
@@ -156,7 +156,7 @@ Each card shows the source platform badge, listing photo when available, price, 
 
 ### Watchlist
 
-The top-level Watchlist tab is for the shared Facebook, Wallapop, and Vinted targets.
+The top-level Watchlist tab is for the shared Facebook, Marketplace, and Vinted targets.
 
 Each shared target can run on one or more platforms. A target card includes:
 
@@ -164,7 +164,7 @@ Each shared target can run on one or more platforms. A target card includes:
 - Search query
 - Group
 - Enabled or disabled state
-- Platform checkboxes for Facebook, Wallapop, and Vinted
+- Platform checkboxes for Facebook, Marketplace, and Vinted
 - Optional per-platform min and max prices
 - Aliases
 - Must-include keywords
@@ -174,9 +174,9 @@ Use **+ Add Target** to paste a new target JSON object.
 
 ### Settings
 
-The top-level Settings tab controls the shared marketplace workspace for Facebook, Wallapop, and Vinted.
+The top-level Settings tab controls the shared marketplace workspace for Facebook, Marketplace, and Vinted.
 
-**Location is now mandatory and blank by default.** The Settings tab no longer has a city label field — only **Latitude** and **Longitude**. None of the snipers (Facebook, Wallapop, Vinted) will start until you fill in both numbers and click **Save Shared Settings**. An amber banner stays pinned to the top of the dashboard with an **Open Settings** shortcut until a valid location is saved.
+**Location is now mandatory and blank by default.** The Settings tab no longer has a city label field — only **Latitude** and **Longitude**. None of the snipers (Facebook, Marketplace, Vinted) will start until you fill in both numbers and click **Save Shared Settings**. An amber banner stays pinned to the top of the dashboard with an **Open Settings** shortcut until a valid location is saved.
 
 The latitude/longitude you enter is what actually controls which city's listings the bots search. Typing "Phoenix, AZ" anywhere will do nothing — you must paste Phoenix's coordinates (`33.4484, -112.0740`) for the bots to search Phoenix. Grab coords for any city by googling "<city> latitude longitude" or by right-clicking the map pin in Google Maps (the first line of the popup is the `lat, lng` pair).
 
@@ -204,9 +204,9 @@ Click **Save Shared Settings** after editing. The app shows a green side notific
 
 The Logs tab shows terminal output for:
 
-- Cars
+- Marketplace
 - Facebook
-- Wallapop
+- Marketplace
 - Vinted
 
 Use it when a bot is not starting, gets blocked, or returns bad responses.
@@ -226,7 +226,7 @@ If a bot refuses to start, check its Log tab. A missing-location or missing-Vint
 
 ## Shared Target JSON
 
-Shared targets power Facebook, Wallapop, and Vinted. This is the simplest useful shape:
+Shared targets power Facebook, Marketplace, and Vinted. This is the simplest useful shape:
 
 ```json
 {
@@ -280,7 +280,7 @@ Important fields:
 
 ## Car Target JSON
 
-Car targets are separate from shared electronics targets and live under Cars -> Config or Cars -> Watchlist.
+Car targets are separate from shared electronics targets and live under Marketplace -> Config or Marketplace -> Watchlist.
 
 Example:
 
@@ -315,7 +315,7 @@ Example:
 }
 ```
 
-Cars are capped at 10 active targets. If you add an 11th enabled target, disable another target first.
+Marketplace are capped at 10 active targets. If you add an 11th enabled target, disable another target first.
 
 ## How Deal Grades Work
 
@@ -342,7 +342,7 @@ For cars:
 | `Maybe` | Worth reviewing or sending a low offer. |
 | `Pass` | Rejected or not enough edge. |
 
-## Vinted Country And Cookie Setup
+ Vinted Country And Cookie Setup
 
 Before Vinted can run, pick your country from the **Vinted Country** dropdown in Settings (or in the inline strip on the Vinted tab). The bot uses the matching domain, locale, and referer for every request.
 
@@ -381,10 +381,10 @@ http://user:pass@host:port
 
 Proxy wiring is currently different by bot:
 
-- Cars use the proxy fields under Cars -> Config -> Quick Settings.
+- Marketplace use the proxy fields under Marketplace -> Config -> Quick Settings.
 - Facebook uses the same desktop proxy environment that is created from the car config proxy field.
 - Vinted uses the top-level Settings proxy and proxy pool fields.
-- Wallapop mainly relies on polling/backoff right now; if it starts rate-limiting, raise the poll interval first.
+- Marketplace mainly relies on polling/backoff right now; if it starts rate-limiting, raise the poll interval first.
 
 ## Reset Memory
 
@@ -394,7 +394,7 @@ Reset Memory only affects the car scanner. It wipes:
 - Car rejected log
 - Car seen-ID cache
 
-Use it when you want the car scanner to re-process listings it has already seen. It does not wipe shared Facebook, Wallapop, or Vinted found files.
+Use it when you want the car scanner to re-process listings it has already seen. It does not wipe shared Facebook, Marketplace, or Vinted found files.
 
 ## Troubleshooting
 
@@ -403,8 +403,9 @@ Use it when you want the car scanner to re-process listings it has already seen.
 | No shared deals appear | Open the platform tab, confirm the bot is running, confirm the target has that platform checked, and check logs. |
 | Found Listings is empty | Make sure at least one platform chip is enabled and filters are not hiding everything. |
 | Facebook fails or rate-limits | Log into Facebook again if prompted, then add a proxy if errors continue. I recommend [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) for longer runs. |
-| Wallapop returns repeated errors | Check target price/radius settings, then add a proxy or increase the poll interval. |
+| Marketplace returns repeated errors | Check target price/radius settings, then add a proxy or increase the poll interval. |
 | Vinted returns 403/429 | Refresh the Vinted cookie and User-Agent, slow the poll interval, and consider [Oxylabs Residential Proxies](https://oxylabs.go2cloud.org/aff_c?offer_id=7&aff_id=2140&url_id=7) if you keep getting rate-limited. |
+
 | Save does nothing | Watch for the green side notification. If it does not appear, check Logs or reload Settings. |
 | Amber location banner will not clear | You have not saved a valid latitude and longitude yet. Fill both fields in Settings and click **Save Shared Settings**. |
 | Vinted refuses to start | Confirm you picked a country in **Settings → Vinted Country**. The Log tab will say `No Vinted country selected` until you do. |

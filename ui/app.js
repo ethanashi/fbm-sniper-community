@@ -228,22 +228,359 @@ const DEFAULT_SHARED_CONFIG = {
     maxPhotos: 3,
     autoOpenBuyNow: false,
     autoOpenBrowser: "default",
-  },
-  filters: {
-    minProfit: 50,
-    minROI: 30,
-    zScoreThreshold: 2.0,
+
   },
   bots: {
-    facebook: { pollIntervalSec: 60 },
-    vinted: { pollIntervalSec: 60, domain: "vinted.es", userAgent: "" },
-    mercadolibre: { pollIntervalSec: 60, siteId: "MLA" },
+    facebook: { pollIntervalSec: 90 },
+    vinted: { pollIntervalSec: 45, cookie: "", userAgent: "", domain: "" },
+    mercadolibre: { pollIntervalSec: 60, siteId: "MLA", accessToken: "" },
     amazon: { pollIntervalSec: 300, country: "US" },
-    arbitrage: { pollIntervalSec: 30 },
+    arbitrage: { pollIntervalSec: 60 },
     anomalia: { pollIntervalSec: 60 },
   },
 };
 
+/* ── Carousel state ─────────────────────────────────────────────────────────── */
+// cardId → current photo index
+const photoIndexes = {};
+
+const MERCADOLIBRE_SITES = [
+  { id: "MLA", country: "Argentina" },
+  { id: "MLB", country: "Brazil" },
+  { id: "MLM", country: "Mexico" },
+  { id: "MLC", country: "Chile" },
+  { id: "MCO", country: "Colombia" },
+  { id: "MLU", country: "Uruguay" },
+  { id: "MPE", country: "Peru" },
+  { id: "MEC", country: "Ecuador" },
+  { id: "MCR", country: "Costa Rica" },
+  { id: "MRD", country: "Dominican Republic" },
+  { id: "MHN", country: "Honduras" },
+  { id: "MNI", country: "Nicaragua" },
+  { id: "MPA", country: "Panama" },
+  { id: "MSV", country: "El Salvador" },
+  { id: "MGT", country: "Guatemala" },
+  { id: "MBO", country: "Bolivia" },
+  { id: "MLV", country: "Venezuela" },
+];
+
+function buildMercadoLibreSiteOptions(selected) {
+  const current = String(selected || "MLA").trim().toUpperCase();
+  return MERCADOLIBRE_SITES.map((s) => {
+    const sel = s.id === current ? "selected" : "";
+    return `<option value="${escAttr(s.id)}" ${sel}>${escHtml(s.country)} (${escHtml(s.id)})</option>`;
+  }).join("");
+}
+
+const AMAZON_SITES = [
+  { id: "US", country: "United States" },
+  { id: "ES", country: "Spain" },
+  { id: "UK", country: "United Kingdom" },
+  { id: "DE", country: "Germany" },
+  { id: "FR", country: "France" },
+  { id: "IT", country: "Italy" },
+  { id: "MX", country: "Mexico" },
+  { id: "BR", country: "Brazil" },
+  { id: "CA", country: "Canada" },
+];
+
+function buildAmazonSiteOptions(selected) {
+  const current = String(selected || "US").trim().toUpperCase();
+  return AMAZON_SITES.map((s) => {
+    const sel = s.id === current ? "selected" : "";
+    return `<option value="${escAttr(s.id)}" ${sel}>${escHtml(s.country)} (${escHtml(s.id)})</option>`;
+  }).join("");
+}
+
+const VINTED_DOMAINS = [
+  { domain: "www.vinted.com",   country: "United States" },
+  { domain: "www.vinted.es",    country: "Spain" },
+  { domain: "www.vinted.fr",    country: "France" },
+  { domain: "www.vinted.de",    country: "Germany" },
+  { domain: "www.vinted.co.uk", country: "United Kingdom" },
+  { domain: "www.vinted.it",    country: "Italy" },
+  { domain: "www.vinted.nl",    country: "Netherlands" },
+  { domain: "www.vinted.be",    country: "Belgium" },
+  { domain: "www.vinted.pl",    country: "Poland" },
+  { domain: "www.vinted.cz",    country: "Czechia" },
+  { domain: "www.vinted.sk",    country: "Slovakia" },
+  { domain: "www.vinted.at",    country: "Austria" },
+  { domain: "www.vinted.pt",    country: "Portugal" },
+  { domain: "www.vinted.lu",    country: "Luxembourg" },
+  { domain: "www.vinted.lt",    country: "Lithuania" },
+  { domain: "www.vinted.fi",    country: "Finland" },
+  { domain: "www.vinted.se",    country: "Sweden" },
+  { domain: "www.vinted.dk",    country: "Denmark" },
+  { domain: "www.vinted.hu",    country: "Hungary" },
+  { domain: "www.vinted.hr",    country: "Croatia" },
+  { domain: "www.vinted.gr",    country: "Greece" },
+  { domain: "www.vinted.ro",    country: "Romania" },
+  { domain: "www.vinted.ie",    country: "Ireland" },
+];
+
+function buildVintedDomainOptions(selected) {
+  const current = String(selected || "").trim().toLowerCase();
+  const placeholder = `<option value="" ${current ? "" : "selected"}>— Select country —</option>`;
+  const rows = VINTED_DOMAINS.map((d) => {
+    const sel = d.domain === current ? "selected" : "";
+    return `<option value="${escAttr(d.domain)}" ${sel}>${escHtml(d.country)} (${escHtml(d.domain)})</option>`;
+  }).join("");
+  return placeholder + rows;
+}
+
+/* ── Tab navigation ─────────────────────────────────────────────────────────── */
+document.querySelectorAll(".nav-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    setActiveTopTab(btn.dataset.tab);
+  });
+});
+
+document.querySelectorAll(".car-subnav-btn").forEach((btn) => {
+});
+
+function setActiveTopTab(tab) {
+  currentTopTab = tab;
+  document.querySelectorAll(".nav-btn").forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
+  document.querySelectorAll(".tab").forEach((node) => node.classList.toggle("active", node.id === `tab-${tab}`));
+
+  if (tab === "settings") {
+    loadSharedSettings();
+    return;
+  }
+  if (tab === "logs") {
+    flushTerminal();
+    return;
+  }
+  if (tab === "watchlist") {
+    loadSharedSettings();
+    renderSharedWatchlistTab();
+    return;
+  }
+  if (tab === "found-listings") {
+    loadFoundListingsDashboard();
+    return;
+  }
+  if (tab === "analytics") {
+    refreshAnalytics();
+    return;
+  }
+  if (PLATFORM_META[tab]) {
+    loadSharedFound(tab);
+    renderMarketplaceTab(tab);
+    flushSniperTerminal(PLATFORM_META[tab].process);
+    if (tab === 'arbitrage') {
+      setTimeout(initArbitrageChart, 100);
+    }
+    if (tab === 'anomalia') {
+      loadSharedFound('anomalia');
+      setTimeout(() => initArbitrageChart('anomalia'), 100);
+    }
+  }
+}
+
+/* ── WebSocket ──────────────────────────────────────────────────────────────── */
+function connectWS() {
+  const token = document.querySelector('meta[name="session-token"]')?.content || "";
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}?token=${token}`);
+
+  ws.onopen = () => {
+    document.getElementById("wsIndicator")?.classList.add("connected");
+    clearTimeout(wsRetryTimer);
+  };
+
+  ws.onclose = () => {
+    document.getElementById("wsIndicator")?.classList.remove("connected");
+    wsRetryTimer = setTimeout(connectWS, 3000);
+  };
+
+  ws.onmessage = ({ data }) => {
+    let msg;
+    try { msg = JSON.parse(data); } catch { return; }
+
+    if (msg.type === "system-status" && msg.status === "System Halted") {
+      document.querySelectorAll(".system-halted-banner").forEach(b => b.style.display = "block");
+      showToast("SYSTEM HALTED - EMERGENCY STOP TRIGGERED", "err");
+      return;
+    }
+
+    if (msg.type === "init") {
+      processState = msg.processes || {};
+      targetGroups = Array.isArray(msg.targetGroups) ? msg.targetGroups : [];
+      Object.entries(msg.logs || {}).forEach(([name, entries]) => {
+        entries.forEach((e) => appendLogLine(name, e.line, e.ts));
+      });
+      renderProcessGrid();
+      renderAllMarketplaceTabs();
+      renderFoundListingsTab();
+      refreshStatus();
+      // Ensure backend is synced with default spot mode
+      switchSpotMode(currentSpotMode);
+      return;
+    }
+
+    if (msg.type === "status" && processState[msg.process]) {
+      processState[msg.process].running  = msg.running;
+      processState[msg.process].stopping = msg.stopping || false;
+      renderProcessGrid();
+      renderAllMarketplaceTabs();
+      renderFoundListingsTab();
+      return;
+    }
+
+    if (msg.type === "crypto_opportunities") {
+      renderSpotArbitrage(msg.data);
+      return;
+    }
+
+    if (msg.type === "spot_radar_feed") {
+      if (msg.mode === currentSpotMode) {
+        handleRadarUpdate(msg.data);
+      }
+      return;
+    }
+
+    if (msg.type === "log") {
+      appendLogLine(msg.process, msg.line, msg.ts);
+      return;
+    }
+
+
+    if (msg.type === "shared-config-updated" || msg.type === "shared-watchlist-updated") {
+      loadSharedSettings();
+      return;
+    }
+
+    if (msg.type === "shared-found-updated" && PLATFORM_META[msg.platform]) {
+      clearTimeout(sharedReloadTimers[msg.platform]);
+      sharedReloadTimers[msg.platform] = setTimeout(() => {
+        loadSharedFound(msg.platform);
+        // Update chart if it's arbitrage or anomalia
+        if (msg.platform === 'arbitrage') {
+          // Filter latest arbitrage by profile_id
+          const principal = sharedFoundDeals.arbitrage.find(d => d.profile_id === 'PRINCIPAL');
+          if (principal) updateArbitrageChart(principal, 'arbitrage');
+
+          const anomalia = sharedFoundDeals.arbitrage.find(d => d.profile_id === 'ANOMALIA');
+          if (anomalia) {
+             sharedFoundDeals.anomalia = sharedFoundDeals.arbitrage.filter(d => d.profile_id === 'ANOMALIA');
+             updateArbitrageChart(anomalia, 'anomalia');
+             renderMarketplaceTab('anomalia');
+          }
+        }
+      }, 250);
+    }
+  };
+}
+
+/* ── Log terminal ───────────────────────────────────────────────────────────── */
+function appendLogLine(procName, line, ts) {
+  if (!terminalBuffers[procName]) terminalBuffers[procName] = [];
+  const div = document.createElement("div");
+  div.className = "log-line";
+
+  const time = document.createElement("span");
+  time.className = "log-ts";
+  time.textContent = new Date(ts).toLocaleTimeString();
+
+  const text = document.createElement("span");
+  const clean = line.replace(/\x1b\[[0-9;]*m/g, "");
+  if (/\[err\]|error/i.test(line)) text.className = "log-err";
+  else if (/^\s*[✓▶?]/.test(line) || /\bBUY NOW\b/.test(line)) text.className = "log-ok";
+  text.textContent = clean;
+
+  div.appendChild(time);
+  div.appendChild(text);
+  terminalBuffers[procName].push(div);
+  if (terminalBuffers[procName].length > 1000) terminalBuffers[procName].shift();
+  if (procName === currentLogProcess) flushTerminal();
+  flushSniperTerminal(procName);
+}
+
+function flushTerminal() {
+  const terminal = document.getElementById("terminal");
+  if (!terminal) return;
+  terminal.innerHTML = "";
+  (terminalBuffers[currentLogProcess] || []).forEach((node) => terminal.appendChild(node.cloneNode(true)));
+  if (document.getElementById("autoScroll")?.checked) terminal.scrollTop = terminal.scrollHeight;
+}
+
+function flushSniperTerminal(procName) {
+  const platform = Object.keys(PLATFORM_META).find((p) => PLATFORM_META[p].process === procName);
+  if (!platform) return;
+  const terminal = document.getElementById(`sniper-terminal-${platform}`);
+  if (!terminal) return;
+  terminal.innerHTML = "";
+  (terminalBuffers[procName] || []).forEach((node) => terminal.appendChild(node.cloneNode(true)));
+  if (document.getElementById(`sniperAutoScroll-${platform}`)?.checked) {
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+}
+
+function clearLog() {
+  terminalBuffers[currentLogProcess] = [];
+  flushTerminal();
+}
+
+document.getElementById("logProcess")?.addEventListener("change", (e) => {
+  currentLogProcess = e.target.value;
+  flushTerminal();
+});
+
+/* ── Process grid ───────────────────────────────────────────────────────────── */
+function renderProcessGrid() {
+  // Cars process grid removed
+}
+
+/* ── Status ─────────────────────────────────────────────────────────────────── */
+async function refreshStatus() {
+  try {
+    const data = await fetch("/api/status").then((r) => r.json());
+    processState = data.processes || {};
+    renderProcessGrid();
+    renderAllMarketplaceTabs();
+  } catch {}
+}
+
+async function startProcess(name) {
+  await startNamedProcess(name);
+}
+
+async function stopProcess(name) {
+  await stopNamedProcess(name);
+}
+
+async function startNamedProcess(name) {
+  const res = await fetch(`/api/process/${name}/start`, { method: "POST" });
+  if (res.ok && processState[name]) {
+    processState[name].running = true;
+    processState[name].stopping = false;
+    renderProcessGrid();
+    renderAllMarketplaceTabs();
+  }
+  refreshStatus();
+}
+
+async function stopNamedProcess(name) {
+  const res = await fetch(`/api/process/${name}/stop`, { method: "POST" });
+  if (res.ok && processState[name]) {
+    processState[name].running = true;
+    processState[name].stopping = true;
+    renderProcessGrid();
+    renderAllMarketplaceTabs();
+  }
+  refreshStatus();
+}
+
+function goToLogs(name) {
+  setActiveTopTab("logs");
+  const sel = document.getElementById("logProcess");
+  if (sel) sel.value = name;
+  currentLogProcess = name;
+  flushTerminal();
+}
+
+/* ── Shared marketplace tabs ───────────────────────────────────────────────── */
 function normalizeSharedConfig(config = {}) {
   return {
     ...DEFAULT_SHARED_CONFIG,
@@ -255,6 +592,7 @@ function normalizeSharedConfig(config = {}) {
     notifications: {
       ...DEFAULT_SHARED_CONFIG.notifications,
       ...((config && config.notifications) || {}),
+
     },
     filters: {
       ...DEFAULT_SHARED_CONFIG.filters,
@@ -262,27 +600,27 @@ function normalizeSharedConfig(config = {}) {
     },
     bots: {
       facebook: {
-        ...(DEFAULT_SHARED_CONFIG.bots.facebook || {}),
+        ...DEFAULT_SHARED_CONFIG.bots.facebook,
         ...(((config && config.bots) || {}).facebook || {}),
       },
       vinted: {
-        ...(DEFAULT_SHARED_CONFIG.bots.vinted || {}),
+        ...DEFAULT_SHARED_CONFIG.bots.vinted,
         ...(((config && config.bots) || {}).vinted || {}),
       },
       mercadolibre: {
-        ...(DEFAULT_SHARED_CONFIG.bots.mercadolibre || {}),
+        ...DEFAULT_SHARED_CONFIG.bots.mercadolibre,
         ...(((config && config.bots) || {}).mercadolibre || {}),
       },
       amazon: {
-        ...(DEFAULT_SHARED_CONFIG.bots.amazon || {}),
+        ...DEFAULT_SHARED_CONFIG.bots.amazon,
         ...(((config && config.bots) || {}).amazon || {}),
       },
       arbitrage: {
-        ...(DEFAULT_SHARED_CONFIG.bots.arbitrage || {}),
+        ...DEFAULT_SHARED_CONFIG.bots.arbitrage,
         ...(((config && config.bots) || {}).arbitrage || {}),
       },
       anomalia: {
-        ...(DEFAULT_SHARED_CONFIG.bots.anomalia || {}),
+        ...DEFAULT_SHARED_CONFIG.bots.anomalia,
         ...(((config && config.bots) || {}).anomalia || {}),
       },
     },
@@ -762,7 +1100,7 @@ function initRadarChart() {
   });
   } catch (err) {
     console.error("Lightweight Charts failed to initialize:", err);
-    triggerTradingViewFallback("spot-radar-chart", "BINANCE:BTCUSDT");
+    triggerTradingViewFallback(containerId, "BINANCE:BTCUSDT");
   }
 
   radarAskSeries = radarChart.addLineSeries({
@@ -1939,6 +2277,7 @@ function readSharedSettingsForm() {
       includePhotos: document.getElementById("sharedIncludePhotos")?.checked !== false,
       maxPhotos,
       autoOpenBuyNow: !!document.getElementById("sharedAutoOpenBuyNow")?.checked,
+      autoOpenBrowser: document.getElementById("sharedAutoOpenBrowser")?.value || "default",
 
     },
     filters: {
