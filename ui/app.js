@@ -136,6 +136,8 @@ const DEFAULT_SHARED_CONFIG = {
     longitude: null,
     confirmed: false,
   },
+  fbMarketplaceLocationUrl: "",
+  fbMarketplaceLocationId: "",
   notifications: {
     includePhotos: true,
     maxPhotos: 3,
@@ -1257,6 +1259,10 @@ function renderSharedSettings() {
             <label for="sharedLongitude">Longitude</label>
             <input id="sharedLongitude" class="quick-input" type="number" step="0.0001" value="${escAttr(config.location?.longitude ?? "")}" />
           </div>
+          <div class="form-field form-field-wide">
+            <label for="sharedFbMarketplaceUrl">Facebook Marketplace Location URL</label>
+            <input id="sharedFbMarketplaceUrl" class="quick-input" type="text" value="${escAttr(config.fbMarketplaceLocationUrl || "")}" placeholder="Paste your facebook.com/marketplace/<id>/ URL — visit Marketplace, copy the URL after FB picks your city" />
+          </div>
           <div class="form-field checkbox-field">
             <label for="sharedIncludePhotos">Include Photos In Alerts</label>
             <input id="sharedIncludePhotos" type="checkbox" ${config.notifications?.includePhotos !== false ? "checked" : ""} />
@@ -1357,6 +1363,12 @@ function readSharedSettingsForm() {
   };
   location.confirmed = latValid && lngValid;
 
+  const fbMarketplaceLocationUrl = (document.getElementById("sharedFbMarketplaceUrl")?.value || "").trim();
+  const fbIdMatch = fbMarketplaceLocationUrl.match(/facebook\.com\/marketplace\/(\d{6,})(?:\/|\?|$)/i);
+  const fbMarketplaceLocationId = fbIdMatch
+    ? fbIdMatch[1]
+    : (/^\d{6,}$/.test(fbMarketplaceLocationUrl) ? fbMarketplaceLocationUrl : "");
+
   return {
     ...base,
     proxy: document.getElementById("sharedProxy")?.value.trim() || "",
@@ -1366,6 +1378,8 @@ function readSharedSettingsForm() {
       .filter(Boolean),
     displayCurrency: normalizeCurrencyForUi(document.getElementById("sharedDisplayCurrency")?.value, base.displayCurrency),
     location,
+    fbMarketplaceLocationUrl,
+    fbMarketplaceLocationId,
     notifications: {
       ...base.notifications,
       includePhotos: document.getElementById("sharedIncludePhotos")?.checked !== false,

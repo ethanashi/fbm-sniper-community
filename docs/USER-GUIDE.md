@@ -156,6 +156,35 @@ To find coordinates:
 
 The amber location banner disappears after a valid location is saved.
 
+### Facebook Marketplace Location URL
+
+Latitude and longitude alone are not enough for Facebook Marketplace — Facebook ignores raw coordinates in the rendered fallback path and serves listings based on the account's session location instead. Symptoms include US users seeing Stockton California, or international users seeing US results.
+
+To fix this, paste your **Facebook Marketplace Location URL** into Settings.
+
+How to get it:
+
+1. Open `https://www.facebook.com/marketplace/` in your normal browser while logged in.
+2. Let Facebook pick a city for you, or click the location pin and choose a city manually.
+3. Once you are on a city-specific page, copy the URL from the address bar. It will look like:
+   ```
+   https://www.facebook.com/marketplace/113132795367102/
+   ```
+   The long number (`113132795367102`) is Facebook's internal ID for that city. Each city has its own.
+4. Paste the full URL into the **Facebook Marketplace Location URL** field in Settings.
+5. Click **Save Shared Settings**.
+
+Examples of city IDs you can use directly if you do not want to look yours up:
+
+| City | Marketplace URL |
+| --- | --- |
+| Des Moines, IA | `https://www.facebook.com/marketplace/113132795367102/` |
+| Lagos, Nigeria | `https://www.facebook.com/marketplace/106265246077413/` |
+
+The bot uses this URL to scope its searches to your city. Without it, Facebook will route the rendered fallback to whatever city it picks for your account.
+
+You only need to do this once per location. If you move, repeat the steps with a new URL.
+
 ## Dashboard Tabs
 
 ### Cars
