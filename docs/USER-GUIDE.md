@@ -158,9 +158,9 @@ The amber location banner disappears after a valid location is saved.
 
 ### Facebook Marketplace Location URL
 
-Latitude and longitude alone are not enough for Facebook Marketplace — Facebook ignores raw coordinates in the rendered fallback path and serves listings based on the account's session location instead. Symptoms include US users seeing Stockton California, or international users seeing US results.
+Latitude and longitude are still required, but Facebook Marketplace can also use its own session city and your network region. When Facebook ignores raw coordinates, symptoms include US users repeatedly seeing Stockton, California, or international users still seeing US results.
 
-To fix this, paste your **Facebook Marketplace Location URL** into Settings.
+To give Facebook a stronger city hint, paste your **Facebook Marketplace Location URL** into Settings. The app extracts Facebook's numeric city ID from that URL and uses it when the rendered Marketplace fallback runs.
 
 How to get it:
 
@@ -174,6 +174,8 @@ How to get it:
 4. Paste the full URL into the **Facebook Marketplace Location URL** field in Settings.
 5. Click **Save Shared Settings**.
 
+You can also paste only the number if you already know it. The field must contain a numeric Marketplace ID. A generic URL like `https://www.facebook.com/marketplace/` does not contain a city ID and will not help.
+
 Examples of city IDs you can use directly if you do not want to look yours up:
 
 | City | Marketplace URL |
@@ -181,7 +183,15 @@ Examples of city IDs you can use directly if you do not want to look yours up:
 | Des Moines, IA | `https://www.facebook.com/marketplace/113132795367102/` |
 | Lagos, Nigeria | `https://www.facebook.com/marketplace/106265246077413/` |
 
-The bot uses this URL to scope its searches to your city. Without it, Facebook will route the rendered fallback to whatever city it picks for your account.
+The bot still sends your saved latitude and longitude, enables browser geolocation for Facebook, and tries Facebook's rendered search fallback when GraphQL is blocked or returns no usable feed. In the Facebook log, look for:
+
+```text
+[fb-scraper] Rendered fallback URL: https://www.facebook.com/marketplace/<id>/search/?...
+```
+
+If the URL contains your city ID, the app is sending the new Facebook location hint correctly.
+
+Important: Facebook may still consider your IP address, VPN, proxy, account history, or browser session. If you are searching Portugal from a US network and still see US listings after saving the Marketplace URL, try a Portugal/EU VPN or proxy and restart the Facebook bot.
 
 You only need to do this once per location. If you move, repeat the steps with a new URL.
 
@@ -319,6 +329,7 @@ Settings controls the shared marketplace workspace.
 Important fields:
 
 - Latitude and longitude
+- Facebook Marketplace Location URL
 - Display currency
 - Proxy URL
 - Proxy pool
@@ -519,6 +530,9 @@ It does not wipe shared Facebook, Wallapop, Vinted, or Mercari found files.
 | Windows SmartScreen blocks install | Click **More info** then **Run anyway**. |
 | Amber location banner stays visible | Save valid latitude and longitude in Settings. |
 | Facebook returns no GraphQL listings | This can be normal. v2.0.4 falls back to rendered Marketplace pages. |
+| Facebook keeps showing the wrong city | Save latitude/longitude, add a Facebook Marketplace Location URL with a numeric city ID, then restart Facebook. If it still stays in the wrong country, use a VPN/proxy near the target city. |
+| Facebook log says `No search doc_id available` | This can happen when Facebook does not expose the GraphQL search query. The bot will try the rendered page fallback next. |
+| Facebook rendered fallback URL has no city ID | The Marketplace Location URL field is blank or did not contain a numeric ID. Open Marketplace in a browser, choose the city, copy the URL with `/marketplace/<number>/`, save it, and restart. |
 | Facebook or Cars photos look wrong | Restart the bot so detail sessions refresh. v2.0.4 fetches photos per listing. |
 | Cars finds nothing | Check price range. Car prices like `$7,500` are supported in v2.0.4. |
 | Mercari finds nothing | Check that Mercari is checked on the target and price range is not too tight. |
