@@ -77,17 +77,6 @@ function ensureBrowser() {
   });
 }
 
-function chromeAlreadyCached() {
-  try {
-    const cacheDir = process.env.PUPPETEER_CACHE_DIR;
-    if (!fs.existsSync(cacheDir)) return false;
-    const entries = fs.readdirSync(cacheDir).filter(Boolean);
-    return entries.length > 0;
-  } catch {
-    return false;
-  }
-}
-
 // ── Main window ──────────────────────────────────────────────────────────────
 async function createWindow(port) {
   mainWindow = new BrowserWindow({
@@ -144,11 +133,6 @@ function broadcastChromeStatus() {
 // Kick off Chrome download without blocking the UI. Failure is non-fatal —
 // Vinted/Wallapop snipers work without it; only Facebook + Cars need Chrome.
 function startChromeDownload() {
-  if (chromeAlreadyCached()) {
-    chromeReady = true;
-    broadcastChromeStatus();
-    return;
-  }
   ensureBrowser()
     .then(() => {
       chromeReady = true;
