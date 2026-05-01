@@ -21,6 +21,7 @@ const SHARED_FOUND_FILES = {
   facebook: path.join(DATA_DIR, "facebook", "found.ndjson"),
   wallapop: path.join(DATA_DIR, "wallapop", "found.ndjson"),
   vinted: path.join(DATA_DIR, "vinted", "found.ndjson"),
+  mercari: path.join(DATA_DIR, "mercari", "found.ndjson"),
 };
 const REJECTED_HEADERS = "timestamp,title,query,target_id,target_label,target_group,listing_price,reason,url,make,model,year,title_status\n";
 
@@ -63,6 +64,13 @@ const PROCESSES = {
     label: "Vinted Sniper",
     cmd: process.execPath,
     args: ["lib/vinted-sniper.js"],
+    proc: null,
+    stopping: false,
+  },
+  "mercari-sniper": {
+    label: "Mercari Sniper",
+    cmd: process.execPath,
+    args: ["lib/mercari-sniper.js"],
     proc: null,
     stopping: false,
   },
@@ -476,6 +484,7 @@ function startWatchers() {
   watchDataFile(SHARED_FOUND_FILES.facebook, "shared-found-updated", { platform: "facebook" });
   watchDataFile(SHARED_FOUND_FILES.wallapop, "shared-found-updated", { platform: "wallapop" });
   watchDataFile(SHARED_FOUND_FILES.vinted, "shared-found-updated", { platform: "vinted" });
+  watchDataFile(SHARED_FOUND_FILES.mercari, "shared-found-updated", { platform: "mercari" });
 }
 
 app.get("/api/status", (_req, res) => {

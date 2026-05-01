@@ -1,7 +1,7 @@
 {
   "name": "fbm-sniper-community",
-  "version": "2.0.3",
-  "description": "Open-source multi-platform marketplace sniper with Cars, Facebook, Wallapop, and Vinted bots.",
+  "version": "2.0.4",
+  "description": "Open-source multi-platform marketplace sniper with Cars, Facebook, Wallapop, Vinted, and Mercari bots.",
   "type": "module",
   "main": "electron.cjs",
   "license": "MIT",
@@ -11,7 +11,7 @@
     "scan:test": "node lib/scanner.js --test",
     "ui": "node server.cjs",
     "desktop": "electron electron.cjs",
-    "check": "node --check lib/scanner.js && node --check lib/fb-scraper.js && node --check lib/fb-session.js && node --check lib/facebook-sniper.js && node --check lib/wallapop-sniper.js && node --check lib/vinted-sniper.js && node --check lib/shared-marketplace/notifier.js && node --check server.cjs && node --check electron.cjs && node --check ui/app.js",
+    "check": "node --check lib/scanner.js && node --check lib/fb-scraper.js && node --check lib/fb-session.js && node --check lib/facebook-sniper.js && node --check lib/wallapop-sniper.js && node --check lib/vinted-sniper.js && node --check lib/mercari-client.js && node --check lib/mercari-sniper.js && node --check lib/shared-marketplace/notifier.js && node --check lib/shared-marketplace/price-band.js && node --check lib/shared-marketplace/currency.js && node --check lib/shared-marketplace/proxy.js && node --check server.cjs && node --check electron.cjs && node --check ui/app.js",
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
     "build:win:local": "node build/build-win-local.cjs",

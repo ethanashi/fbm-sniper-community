@@ -15,6 +15,7 @@
       <button class="nav-btn" data-tab="facebook">Facebook</button>
       <button class="nav-btn" data-tab="wallapop">Wallapop</button>
       <button class="nav-btn" data-tab="vinted">Vinted</button>
+      <button class="nav-btn" data-tab="mercari">Mercari</button>
       <button class="nav-btn" data-tab="found-listings">Found Listings</button>
       <button class="nav-btn" data-tab="watchlist">Watchlist</button>
       <button class="nav-btn" data-tab="settings">Settings</button>
@@ -209,7 +210,7 @@
                 <div class="settings-top">
                   <div>
                     <h3>App Config</h3>
-                    <div class="settings-sub">Full JSON for the legacy car scanner.</div>
+                    <div class="settings-sub">Full JSON for the car scanner.</div>
                   </div>
                   <button class="btn btn-secondary" onclick="reloadSettings()">Reload</button>
                 </div>
@@ -246,6 +247,7 @@
     <section class="tab" id="tab-facebook"><div id="facebookPanel"></div></section>
     <section class="tab" id="tab-wallapop"><div id="wallapopPanel"></div></section>
     <section class="tab" id="tab-vinted"><div id="vintedPanel"></div></section>
+    <section class="tab" id="tab-mercari"><div id="mercariPanel"></div></section>
     <section class="tab" id="tab-found-listings">
       <div class="platform-shell">
         <section class="hero-panel">
@@ -263,6 +265,7 @@
               <option value="facebook">Facebook</option>
               <option value="wallapop">Wallapop</option>
               <option value="vinted">Vinted</option>
+              <option value="mercari">Mercari</option>
               <option value="cars">Cars</option>
             </select>
             <select id="foundListingsGradeFilter" class="filter-select">
@@ -297,6 +300,7 @@
           <option value="facebook-sniper">Facebook</option>
           <option value="wallapop-sniper">Wallapop</option>
           <option value="vinted-sniper">Vinted</option>
+          <option value="mercari-sniper">Mercari</option>
         </select>
         <label class="autoscroll">
           <input type="checkbox" id="autoScroll" checked />
