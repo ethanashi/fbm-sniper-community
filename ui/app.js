@@ -17,18 +17,21 @@ const sharedFoundDeals = {
   facebook: [],
   wallapop: [],
   vinted: [],
+  mercari: [],
 };
 const foundListingsLoaded = {
   cars: false,
   facebook: false,
   wallapop: false,
   vinted: false,
+  mercari: false,
 };
 // In-memory grade filter per platform. Set of selected letter grades; empty Set = show all.
 const sharedGradeFilter = {
   facebook: new Set(),
   wallapop: new Set(),
   vinted: new Set(),
+  mercari: new Set(),
 };
 const SHARED_GRADE_LETTERS = ["A", "B", "C", "D", "F"];
 let currentTopTab = "cars";
@@ -44,6 +47,7 @@ const sharedReloadTimers = {
   facebook: null,
   wallapop: null,
   vinted: null,
+  mercari: null,
 };
 const terminalBuffers = {};
 let activeDealModal = null;
@@ -66,6 +70,11 @@ const PLATFORM_META = {
     process: "vinted-sniper",
     description: "Shared Vinted loop with optional cookie override, photos, and Discord routing.",
   },
+  mercari: {
+    label: "Mercari",
+    process: "mercari-sniper",
+    description: "Shared Mercari loop using a public browser session, newest search, and no user cookies.",
+  },
 };
 
 const FOUND_LISTINGS_META = [
@@ -73,7 +82,7 @@ const FOUND_LISTINGS_META = [
     id: "cars",
     label: "Cars",
     process: "car-sniper",
-    description: "Original community car feed with full underwriting cards.",
+    description: "Facebook car feed with automatic session capture and full underwriting cards.",
   },
   ...Object.entries(PLATFORM_META).map(([id, meta]) => ({
     id,
@@ -121,6 +130,7 @@ const DEFAULT_SHARED_CONFIG = {
   appName: "FBM Sniper Community",
   proxy: "",
   proxyPool: [],
+  displayCurrency: "USD",
   location: {
     latitude: null,
     longitude: null,
@@ -138,11 +148,54 @@ const DEFAULT_SHARED_CONFIG = {
     },
   },
   bots: {
-    facebook: { pollIntervalSec: 90, searchDocId: "", detailDocId: "", searchVariables: "", detailVariables: "" },
+    facebook: { pollIntervalSec: 90 },
     wallapop: { pollIntervalSec: 60 },
     vinted: { pollIntervalSec: 45, cookie: "", userAgent: "", domain: "" },
+    mercari: { pollIntervalSec: 60, userAgent: "" },
   },
 };
+
+const DISPLAY_CURRENCY_OPTIONS = [
+  { code: "USD", label: "United States Dollar" },
+  { code: "EUR", label: "Euro" },
+  { code: "GBP", label: "British Pound" },
+  { code: "CAD", label: "Canadian Dollar" },
+  { code: "AUD", label: "Australian Dollar" },
+  { code: "JPY", label: "Japanese Yen" },
+  { code: "PLN", label: "Polish Zloty" },
+  { code: "SEK", label: "Swedish Krona" },
+  { code: "DKK", label: "Danish Krone" },
+  { code: "CZK", label: "Czech Koruna" },
+  { code: "RON", label: "Romanian Leu" },
+  { code: "HUF", label: "Hungarian Forint" },
+];
+
+function normalizeCurrencyForUi(value, fallback = DEFAULT_SHARED_CONFIG.displayCurrency) {
+  const code = String(value || "").trim().toUpperCase();
+  if (DISPLAY_CURRENCY_OPTIONS.some((entry) => entry.code === code)) return code;
+  if (fallback === "" || fallback === null) return "";
+  const safeFallback = String(fallback || DEFAULT_SHARED_CONFIG.displayCurrency).trim().toUpperCase();
+  return DISPLAY_CURRENCY_OPTIONS.some((entry) => entry.code === safeFallback)
+    ? safeFallback
+    : DEFAULT_SHARED_CONFIG.displayCurrency;
+}
+
+function buildDisplayCurrencyOptions(selected) {
+  const current = normalizeCurrencyForUi(selected);
+  return DISPLAY_CURRENCY_OPTIONS.map((entry) => {
+    const label = `${entry.code} - ${entry.label}`;
+    return `<option value="${escAttr(entry.code)}" ${entry.code === current ? "selected" : ""}>${escHtml(label)}</option>`;
+  }).join("");
+}
+
+function nativeCurrencyForUiPlatform(platform, deal = {}) {
+  const explicit = normalizeCurrencyForUi(deal?.native_currency || deal?.currency || "", "");
+  if (explicit) return explicit;
+  const key = String(platform || "").toLowerCase();
+  if (key === "mercari") return "USD";
+  if (key === "wallapop" || key === "vinted") return "EUR";
+  return normalizeSharedConfig(sharedConfig).displayCurrency;
+}
 
 /* ── Carousel state ─────────────────────────────────────────────────────────── */
 // cardId → current photo index
@@ -398,7 +451,7 @@ function renderProcessGrid() {
     <div class="process-header">
       <div>
         <div class="process-name">${escHtml(info.label)}</div>
-        <div class="process-desc">Original community car scan loop with local watchlist, found, rejected, and config views.</div>
+        <div class="process-desc">Car scan loop using the automatic Facebook session capture, local car watchlist, found, rejected, and config views.</div>
       </div>
       <span class="badge ${badgeClass}">${badgeText}</span>
     </div>
@@ -479,6 +532,7 @@ function normalizeSharedConfig(config = {}) {
   return {
     ...DEFAULT_SHARED_CONFIG,
     ...(config && typeof config === "object" ? config : {}),
+    displayCurrency: normalizeCurrencyForUi(config?.displayCurrency, DEFAULT_SHARED_CONFIG.displayCurrency),
     location: {
       ...DEFAULT_SHARED_CONFIG.location,
       ...((config && config.location) || {}),
@@ -503,6 +557,10 @@ function normalizeSharedConfig(config = {}) {
       vinted: {
         ...DEFAULT_SHARED_CONFIG.bots.vinted,
         ...(((config && config.bots) || {}).vinted || {}),
+      },
+      mercari: {
+        ...DEFAULT_SHARED_CONFIG.bots.mercari,
+        ...(((config && config.bots) || {}).mercari || {}),
       },
     },
   };
@@ -768,8 +826,11 @@ function renderMarketplaceTab(platform) {
   const badgeClass = info.running ? (info.stopping ? "badge-stopping" : "badge-running") : "badge-stopped";
   const badgeText = info.running ? (info.stopping ? "Stopping" : "Running") : "Stopped";
   const proxyCount = Array.isArray(sharedConfig.proxyPool) ? sharedConfig.proxyPool.length : 0;
-  const proxyBadgeClass = proxyCount ? "sniper-proxy-ok" : "sniper-proxy-none";
-  const proxyBadgeText = proxyCount ? `${proxyCount} proxy${proxyCount === 1 ? "" : "ies"}` : "No proxies";
+  const hasProxyUrl = !!String(sharedConfig.proxy || "").trim();
+  const proxyBadgeClass = proxyCount || hasProxyUrl ? "sniper-proxy-ok" : "sniper-proxy-none";
+  const proxyBadgeText = proxyCount
+    ? `${proxyCount} proxy${proxyCount === 1 ? "" : "ies"}`
+    : hasProxyUrl ? "1 proxy URL" : "No proxies";
 
   mount.innerHTML = `
     <div class="sniper-shell">
@@ -792,7 +853,7 @@ function renderMarketplaceTab(platform) {
             <span class="sniper-setting-unit">s</span>
           </div>
           ${platform === "vinted" ? buildVintedExtraSettings(botConfig) : ""}
-          ${platform === "facebook" ? buildFacebookExtraSettings(botConfig) : ""}
+          ${platform === "mercari" ? buildMercariExtraSettings(botConfig) : ""}
           <div class="sniper-setting-item">
             <button class="btn btn-secondary btn-sm" onclick="applyBotSettings('${platform}')">Apply</button>
             <span class="sniper-setting-hint">Takes effect on next Start</span>
@@ -853,31 +914,6 @@ function renderMarketplaceTab(platform) {
   flushSniperTerminal(meta.process);
 }
 
-function buildFacebookExtraSettings(botConfig) {
-  const searchDocId = botConfig.searchDocId || "";
-  const detailDocId = botConfig.detailDocId || "";
-  const searchVariables = botConfig.searchVariables || "";
-  const detailVariables = botConfig.detailVariables || "";
-  return `
-    <div class="sniper-setting-item sniper-setting-cookie">
-      <label for="sniper-facebook-search-doc">Search doc_id</label>
-      <input type="text" id="sniper-facebook-search-doc" placeholder="Paste CometMarketplaceSearchContentContainerQuery doc_id (any shape — bare number, doc_id=..., JSON)" autocomplete="off" value="${escAttr(searchDocId)}" />
-    </div>
-    <div class="sniper-setting-item sniper-setting-cookie">
-      <label for="sniper-facebook-search-vars">Search variables (full POST body)</label>
-      <textarea id="sniper-facebook-search-vars" class="quick-input quick-textarea" rows="4" placeholder="Paste the entire form body from DevTools → that POST → Payload → 'view source'. Must contain variables=... — sanitizer extracts the JSON automatically.">${escHtml(searchVariables)}</textarea>
-    </div>
-    <div class="sniper-setting-item sniper-setting-cookie">
-      <label for="sniper-facebook-detail-doc">Detail doc_id</label>
-      <input type="text" id="sniper-facebook-detail-doc" placeholder="Paste MarketplacePDPContainerQuery doc_id (any shape)" autocomplete="off" value="${escAttr(detailDocId)}" />
-    </div>
-    <div class="sniper-setting-item sniper-setting-cookie">
-      <label for="sniper-facebook-detail-vars">Detail variables (full POST body)</label>
-      <textarea id="sniper-facebook-detail-vars" class="quick-input quick-textarea" rows="4" placeholder="Paste the form body of any MarketplacePDPContainerQuery POST (DevTools → click any listing → Network → that POST → Payload → 'view source'). The scraper rewrites listingID per item.">${escHtml(detailVariables)}</textarea>
-    </div>
-  `;
-}
-
 function buildVintedExtraSettings(botConfig) {
   const cookie = botConfig.cookie || "";
   const ua = botConfig.userAgent || "";
@@ -900,6 +936,16 @@ function buildVintedExtraSettings(botConfig) {
   `;
 }
 
+function buildMercariExtraSettings(botConfig) {
+  const ua = botConfig.userAgent || "";
+  return `
+    <div class="sniper-setting-item sniper-setting-cookie">
+      <label for="sniper-mercari-ua">User-Agent</label>
+      <input type="text" id="sniper-mercari-ua" placeholder="Optional browser UA override" autocomplete="off" value="${escAttr(ua)}" />
+    </div>
+  `;
+}
+
 async function applyBotSettings(platform) {
   if (!PLATFORM_META[platform]) return;
   const pollEl = document.getElementById(`sniper-${platform}-poll`);
@@ -914,14 +960,8 @@ async function applyBotSettings(platform) {
     nextBot.userAgent = document.getElementById("sniper-vinted-ua")?.value.trim() || "";
     nextBot.domain = document.getElementById("sniper-vinted-domain")?.value.trim() || "";
   }
-  if (platform === "facebook") {
-    // We store the raw paste — sanitization happens server-side at use time
-    // (lib/fb-config.js). That way the UI round-trips show what the user
-    // originally pasted, not a stripped digit run.
-    nextBot.searchDocId = document.getElementById("sniper-facebook-search-doc")?.value.trim() || "";
-    nextBot.detailDocId = document.getElementById("sniper-facebook-detail-doc")?.value.trim() || "";
-    nextBot.searchVariables = document.getElementById("sniper-facebook-search-vars")?.value.trim() || "";
-    nextBot.detailVariables = document.getElementById("sniper-facebook-detail-vars")?.value.trim() || "";
+  if (platform === "mercari") {
+    nextBot.userAgent = document.getElementById("sniper-mercari-ua")?.value.trim() || "";
   }
   const nextConfig = normalizeSharedConfig({
     ...sharedConfig,
@@ -964,7 +1004,7 @@ function renderSharedWatchlistTab() {
   }, counts);
 
   if (!sharedWatchlist.length) {
-    container.innerHTML = '<div class="empty">No shared targets yet. Add one to start sniping Facebook, Wallapop, or Vinted.</div>';
+    container.innerHTML = '<div class="empty">No shared targets yet. Add one to start sniping Facebook, Wallapop, Vinted, or Mercari.</div>';
     return;
   }
 
@@ -997,12 +1037,13 @@ function renderSharedWatchlistTab() {
 
 function buildSharedWatchCard(target) {
   const globallyOff = target.enabled === false;
-  const platforms = ["facebook", "wallapop", "vinted"];
+  const platforms = ["facebook", "wallapop", "vinted", "mercari"];
   const chipsHtml = platforms.map((p) => buildSharedWatchSiteChip(target, p)).join("");
+  const displayCurrency = normalizeSharedConfig(sharedConfig).displayCurrency;
 
   const facts = [];
   if (target.minPrice != null || target.maxPrice != null) {
-    facts.push(`<div class="watch-fact">Search band <strong>${formatEuro(target.minPrice)}</strong> to <strong>${formatEuro(target.maxPrice)}</strong></div>`);
+    facts.push(`<div class="watch-fact">Search band <strong>${formatCurrencyForUi(target.minPrice, displayCurrency)}</strong> to <strong>${formatCurrencyForUi(target.maxPrice, displayCurrency)}</strong></div>`);
   }
   if ((target.mustInclude || []).length) {
     facts.push(`<div class="watch-fact">Must include: <strong>${escHtml(target.mustInclude.join(", "))}</strong></div>`);
@@ -1040,6 +1081,7 @@ function buildSharedWatchCard(target) {
 
 function buildSharedWatchSiteChip(target, platform) {
   const meta = PLATFORM_META[platform];
+  const displayCurrency = normalizeSharedConfig(sharedConfig).displayCurrency;
   const on = targetAppliesToPlatform(target, platform);
   const override = (target.platformOverrides || {})[platform] || {};
   const globalMin = target.minPrice == null ? "" : target.minPrice;
@@ -1056,14 +1098,14 @@ function buildSharedWatchSiteChip(target, platform) {
       </label>
       <div class="watch-site-chip-prices">
         <label>
-          <span>Min €</span>
+          <span>Min ${escHtml(displayCurrency)}</span>
           <input type="number" min="0" step="1" value="${escAttr(minVal)}"
             placeholder="${escAttr(globalMin === "" ? "—" : String(globalMin))}"
             onchange="setPlatformPriceOverride('${escAttr(target.id)}', '${platform}', 'minPrice', this.value)"
             ${on ? "" : "disabled"} />
         </label>
         <label>
-          <span>Max €</span>
+          <span>Max ${escHtml(displayCurrency)}</span>
           <input type="number" min="0" step="1" value="${escAttr(maxVal)}"
             placeholder="${escAttr(globalMax === "" ? "—" : String(globalMax))}"
             onchange="setPlatformPriceOverride('${escAttr(target.id)}', '${platform}', 'maxPrice', this.value)"
@@ -1144,7 +1186,8 @@ function openAddTargetForPlatform(platform) {
     query: "",
     group: "General",
     enabled: true,
-    product: "iphone",
+    product: "general",
+    targetType: "general",
     platforms: [platform],
     aliases: [],
     mustInclude: [],
@@ -1199,6 +1242,12 @@ function renderSharedSettings() {
           <div class="form-field form-field-wide">
             <label for="sharedProxyPool">Proxy Pool</label>
             <textarea id="sharedProxyPool" class="quick-input quick-textarea" rows="4" placeholder="One proxy URL per line">${escHtml((config.proxyPool || []).join("\n"))}</textarea>
+          </div>
+          <div class="form-field">
+            <label for="sharedDisplayCurrency">Display Currency</label>
+            <select id="sharedDisplayCurrency" class="quick-input">
+              ${buildDisplayCurrencyOptions(config.displayCurrency)}
+            </select>
           </div>
           <div class="form-field">
             <label for="sharedLatitude">Latitude</label>
@@ -1283,6 +1332,12 @@ function buildBotFieldset(platform, botConfig) {
           <input id="bot-vinted-ua" class="quick-input" type="text" value="${escAttr(botConfig.userAgent || "")}" placeholder="Paste the exact UA the cookie was minted in (DevTools → Network → any request → Headers → user-agent). Leave blank for mobile Safari default." />
         </div>
       ` : ""}
+      ${platform === "mercari" ? `
+        <div class="form-field form-field-wide">
+          <label for="bot-mercari-ua">Mercari User-Agent</label>
+          <input id="bot-mercari-ua" class="quick-input" type="text" value="${escAttr(botConfig.userAgent || "")}" placeholder="Optional browser UA override. Leave blank for the built-in desktop Chrome UA." />
+        </div>
+      ` : ""}
     </fieldset>
   `;
 }
@@ -1309,6 +1364,7 @@ function readSharedSettingsForm() {
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean),
+    displayCurrency: normalizeCurrencyForUi(document.getElementById("sharedDisplayCurrency")?.value, base.displayCurrency),
     location,
     notifications: {
       ...base.notifications,
@@ -1337,6 +1393,11 @@ function readSharedSettingsForm() {
         cookie: document.getElementById("bot-vinted-cookie")?.value.trim() || "",
         userAgent: document.getElementById("bot-vinted-ua")?.value.trim() || "",
         domain: document.getElementById("bot-vinted-domain")?.value.trim() || "",
+      },
+      mercari: {
+        ...base.bots.mercari,
+        pollIntervalSec: clampNumber(document.getElementById("bot-mercari-poll")?.value, 5, 3600, base.bots.mercari.pollIntervalSec),
+        userAgent: document.getElementById("bot-mercari-ua")?.value.trim() || "",
       },
     },
   };
@@ -1432,12 +1493,18 @@ function foundPlatformBadgeClass(platform) {
   if (platform === "cars") return "badge-platform-cars";
   if (platform === "wallapop") return "badge-platform-wallapop";
   if (platform === "vinted") return "badge-platform-vinted";
+  if (platform === "mercari") return "badge-platform-mercari";
   return "badge-platform-facebook";
 }
 
 function formatFoundPlatformLabel(platform) {
   if (platform === "cars") return "Cars";
   return PLATFORM_META[platform]?.label || platform || "Unknown";
+}
+
+function formatSharedPrice(platform, deal, value) {
+  const currency = normalizeCurrencyForUi(deal?.currency, nativeCurrencyForUiPlatform(platform, deal));
+  return formatCurrencyForUi(value, currency);
 }
 
 function buildSharedDealCard(platform, deal) {
@@ -1502,7 +1569,7 @@ function buildSharedDealCard(platform, deal) {
         <div class="marketplace-metrics compact">
           <div class="market-metric">
             <span class="market-metric-label">Listed</span>
-            <strong>${formatEuro(price)}</strong>
+            <strong>${formatSharedPrice(platform, deal, price)}</strong>
           </div>
           <div class="market-metric">
             <span class="market-metric-label">Score</span>
@@ -1532,6 +1599,7 @@ function buildSharedDealCard(platform, deal) {
 function collectSharedPhotoUrls(deal) {
   const seen = new Set();
   const pools = [
+    ...(Array.isArray(deal?.photoUrls) ? deal.photoUrls : []),
     ...(Array.isArray(deal?.listing?.photos) ? deal.listing.photos : []),
     ...(Array.isArray(deal?.photos) ? deal.photos : []),
     ...(Array.isArray(deal?.item?.photos) ? deal.item.photos : []),
@@ -2580,6 +2648,22 @@ function formatNumber(v) {
 function formatMoney(v) {
   const n = Number(v);
   return Number.isFinite(n) ? `$${n.toLocaleString()}` : "–";
+}
+
+function formatCurrencyForUi(v, currency) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "–";
+  const code = normalizeCurrencyForUi(currency);
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "narrowSymbol",
+      maximumFractionDigits: ["JPY", "HUF"].includes(code) ? 0 : 2,
+    }).format(n);
+  } catch {
+    return `${code} ${n.toLocaleString()}`;
+  }
 }
 
 function formatEuro(v) {

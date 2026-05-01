@@ -4,5 +4,5 @@
  * @type {import("puppeteer").Configuration}
  */
 module.exports = {
-  cacheDirectory: './puppeteer-cache',
+  cacheDirectory: '../../puppeteer-cache',
 };

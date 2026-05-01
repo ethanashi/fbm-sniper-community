@@ -53,6 +53,21 @@ test("collectSharedPhotoUrls extracts Wallapop image URLs from item.images", () 
   ]);
 });
 
+test("collectSharedPhotoUrls extracts top-level Mercari photoUrls", () => {
+  const collectSharedPhotoUrls = extractFunction("collectSharedPhotoUrls");
+  const photos = collectSharedPhotoUrls({
+    photoUrls: [
+      "https://u-mercari-images.mercdn.net/photos/one.jpg",
+      "https://u-mercari-images.mercdn.net/photos/two.jpg",
+    ],
+  });
+
+  assert.deepEqual(Array.from(photos), [
+    "https://u-mercari-images.mercdn.net/photos/one.jpg",
+    "https://u-mercari-images.mercdn.net/photos/two.jpg",
+  ]);
+});
+
 test("getFoundListingsColumns hides columns that the user disabled", () => {
   const getFoundListingsColumns = extractFunction("getFoundListingsColumns", {
     FOUND_LISTINGS_META: [
@@ -60,24 +75,28 @@ test("getFoundListingsColumns hides columns that the user disabled", () => {
       { id: "facebook", label: "Facebook", process: "facebook-sniper" },
       { id: "wallapop", label: "Wallapop", process: "wallapop-sniper" },
       { id: "vinted", label: "Vinted", process: "vinted-sniper" },
+      { id: "mercari", label: "Mercari", process: "mercari-sniper" },
     ],
     foundListingsColumnVisibility: {
       cars: true,
       facebook: true,
       wallapop: false,
       vinted: true,
+      mercari: true,
     },
     foundDeals: [{ title: "car deal" }],
     sharedFoundDeals: {
       facebook: [{ title: "fb deal" }],
       wallapop: [{ title: "wp deal" }],
       vinted: [{ title: "vinted deal" }],
+      mercari: [{ title: "mercari deal" }],
     },
     processState: {
       "car-sniper": { running: true, stopping: false },
       "facebook-sniper": { running: false, stopping: false },
       "wallapop-sniper": { running: true, stopping: false },
       "vinted-sniper": { running: true, stopping: true },
+      "mercari-sniper": { running: false, stopping: false },
     },
   });
 
@@ -85,11 +104,12 @@ test("getFoundListingsColumns hides columns that the user disabled", () => {
 
   assert.deepEqual(
     columns.map((column) => column.id),
-    ["cars", "facebook", "vinted"],
+    ["cars", "facebook", "vinted", "mercari"],
   );
   assert.equal(columns[0].count, 1);
   assert.equal(columns[1].count, 1);
   assert.equal(columns[2].process.stopping, true);
+  assert.equal(columns[3].count, 1);
 });
 
 test("classifyDealTier does not color cards from grade alone", () => {
@@ -117,6 +137,7 @@ test("buildSharedDealCard labels the source platform on found cards", () => {
     foundPlatformBadgeClass: () => "badge-platform-wallapop",
     classifyDealTier: () => ({ tier: "", label: "" }),
     gradeBadgeClass: () => "badge-running",
+    formatSharedPrice: (_platform, _deal, value) => `€${value}`,
     escHtml: (value) => String(value),
     escAttr: (value) => String(value),
     formatEuro: (value) => `€${value}`,
@@ -133,8 +154,27 @@ test("buildSharedDealCard labels the source platform on found cards", () => {
   assert.match(html, /Found Listing/);
 });
 
+test("formatSharedPrice uses the deal currency instead of platform guesses", () => {
+  const formatSharedPrice = extractFunction("formatSharedPrice", {
+    normalizeCurrencyForUi: (value, fallback = "USD") => String(value || fallback).toUpperCase(),
+    normalizeSharedConfig: () => ({ displayCurrency: "USD" }),
+    nativeCurrencyForUiPlatform: () => "USD",
+    sharedConfig: {},
+    formatCurrencyForUi: (value, currency) => `${currency}:${value}`,
+  });
+
+  assert.equal(formatSharedPrice("wallapop", { currency: "USD" }, 42), "USD:42");
+  assert.equal(formatSharedPrice("mercari", { currency: "EUR" }, 42), "EUR:42");
+});
+
 test("sharedConfigNeedsLocationReview keeps banner visible for unconfirmed Dallas starter", () => {
-  const sharedConfigNeedsLocationReview = extractFunction("sharedConfigNeedsLocationReview");
+  const sharedConfigNeedsLocationReview = extractFunction("sharedConfigNeedsLocationReview", {
+    sharedConfigHasLocation: (config) => {
+      const lat = Number(config?.location?.latitude);
+      const lng = Number(config?.location?.longitude);
+      return Number.isFinite(lat) && Number.isFinite(lng);
+    },
+  });
 
   assert.equal(sharedConfigNeedsLocationReview({
     location: {

@@ -4,6 +4,8 @@ import path from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 
+import { resolveTargetPriceBand } from "../lib/shared-marketplace/price-band.js";
+
 const sniperPath = path.resolve("lib/wallapop-sniper.js");
 const source = fs.readFileSync(sniperPath, "utf8");
 
@@ -50,6 +52,9 @@ test("runQuery preserves base radius when target radius is null", async () => {
       receivedCfg = cfg;
       return [];
     },
+    convertPriceBandForCurrency: (band) => band,
+    nativeCurrencyForPlatform: () => "EUR",
+    resolveTargetPriceBand,
     chalk: {
       red: (value) => value,
       gray: (value) => value,
@@ -91,4 +96,6 @@ test("runQuery preserves base radius when target radius is null", async () => {
 
   assert.ok(receivedCfg, "runQuery should call fetchPage");
   assert.equal(receivedCfg.radiusKm, 10);
+  assert.equal(receivedCfg.minPrice, 0);
+  assert.equal(receivedCfg.maxPrice, 250000);
 });

@@ -511,6 +511,7 @@ h2 {
 .badge-platform-facebook { background: rgba(46,207,122,.12); color: var(--green); }
 .badge-platform-wallapop { background: rgba(79,126,248,.16); color: #9cb7ff; }
 .badge-platform-vinted { background: rgba(16,185,129,.14); color: #7ee8c2; }
+.badge-platform-mercari { background: rgba(255,90,95,.14); color: #ff9a9d; }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────────── */
 .toolbar {
