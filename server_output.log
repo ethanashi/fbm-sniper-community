@@ -1,0 +1,8 @@
+
+> fbm-sniper-community@2.0.2 ui
+> node server.cjs
+
+[server] Checking for browser environment...
+[server] Browser environment ready.
+
+  FBM Sniper Community Edition running at http://localhost:3340

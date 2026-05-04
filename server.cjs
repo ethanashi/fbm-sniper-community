@@ -119,7 +119,8 @@ const SESSION_TOKEN = crypto.randomBytes(32).toString("hex");
 let workspace = null;
 async function initWorkspace() {
   if (workspace) return workspace;
-  workspace = await import("./lib/shared-marketplace/workspace.js");
+  const mod = await import("./lib/shared-marketplace/workspace.js");
+  workspace = mod.default || mod;
   workspace.ensureWorkspaceFiles();
   return workspace;
 }
