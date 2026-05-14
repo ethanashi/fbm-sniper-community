@@ -14,8 +14,7 @@ Everything runs locally on your machine.
 
 If you want setup help, examples, and a place to share flips, jump into the community Discord:
 
-**→ [Discord / Whop Join Link](https://whop.com/fbmsniper/fbm-sniper-community-free-marketplace-sniper-bot/)**
-
+**→ [discord.gg/BkpQSnth4C](https://discord.gg/BkpQSnth4C)**
 
 ## What v2 adds
 

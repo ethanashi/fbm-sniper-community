@@ -22,3 +22,9 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Generated knowledge base files
+AGENTS.md
+
+# OpenCode working files
+.sisyphus/
