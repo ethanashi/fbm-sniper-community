@@ -34,6 +34,8 @@ const wss = new WebSocketServer({ server });
 app.use(express.json());
 app.use(express.static(UI_DIR));
 
+app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
 // When running inside Electron (packaged or dev), use Electron's bundled Node
 // so end users don't need Node.js installed on their machine.
 const IS_ELECTRON = !!process.versions.electron;
@@ -744,6 +746,56 @@ app.post("/api/shared/settings", (req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/api/geoip", async (req, res) => {
+  try {
+    const forwarded = req.headers["x-forwarded-for"];
+    const rawIp = forwarded ? forwarded.split(",")[0].trim() : (req.ip || req.socket.remoteAddress || "");
+
+    // Strip IPv4-mapped IPv6 prefix and remove port if present
+    const cleanIp = (rawIp || "").replace(/^::ffff:/, "").split(":")[0];
+
+    // Only pass public IPs to ip-api.com; private/empty IPs use the request's source IP automatically
+    const privateRanges = [/^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./, /^127\./, /^0\./, /^::1$/, /^$/];
+    const isPublicIp = cleanIp && !privateRanges.some((r) => r.test(cleanIp));
+
+    const url = isPublicIp
+      ? `http://ip-api.com/json/${encodeURIComponent(cleanIp)}?fields=status,lat,lon,city,regionName,countryCode,zip&lang=en`
+      : `http://ip-api.com/json/?fields=status,lat,lon,city,regionName,countryCode,zip&lang=en`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const resp = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "fbm-sniper-community" },
+    });
+    clearTimeout(timeout);
+    if (resp.status === 429) {
+      return res.status(429).json({ ok: false, error: "Rate limited by ip-api.com, please try again later." });
+    }
+    const data = await resp.json();
+    if (data.status !== "success") {
+      return res.status(400).json({ ok: false, error: data.message || "Geolocation failed" });
+    }
+    res.json({
+      ok: true,
+      location: {
+        latitude: data.lat,
+        longitude: data.lon,
+        city: data.city || "",
+        region: data.regionName || "",
+        countryCode: data.countryCode || "",
+        zip: data.zip || "",
+      },
+    });
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      return res.status(504).json({ ok: false, error: "Geolocation request timed out" });
+    }
+    return res.status(500).json({ ok: false, error: err?.message || "Internal error" });
+  }
+});
+
 app.get("/api/shared/watchlist", (_req, res) => {
   const ws = requireWorkspace(res);
   if (!ws) return;
@@ -884,7 +936,7 @@ async function startServer(port) {
       reject(error);
     };
     server.on("error", listenErrorHandler);
-    server.listen(port || 0, "127.0.0.1", () => {
+    server.listen(port || 0, "0.0.0.0", () => {
       if (listenErrorHandler) {
         server.removeListener("error", listenErrorHandler);
         listenErrorHandler = null;

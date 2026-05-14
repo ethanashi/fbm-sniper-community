@@ -1,0 +1,16 @@
+services:
+  sniper:
+    build: .
+    container_name: fbm-sniper
+    ports:
+      - "3340:3340"
+    volumes:
+      - fbm-sniper-data:/app/data
+    environment:
+      - FBM_DATA_DIR=/app/data
+      - PUPPETEER_CACHE_DIR=/app/chrome-cache
+      - PORT=3340
+    restart: unless-stopped
+
+volumes:
+  fbm-sniper-data:

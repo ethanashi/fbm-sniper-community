@@ -1,4 +1,3 @@
-/* ── State ──────────────────────────────────────────────────────────────────── */
 let ws = null;
 let wsRetryTimer = null;
 let processState = {};
@@ -199,7 +198,6 @@ function nativeCurrencyForUiPlatform(platform, deal = {}) {
   return normalizeSharedConfig(sharedConfig).displayCurrency;
 }
 
-/* ── Carousel state ─────────────────────────────────────────────────────────── */
 // cardId → current photo index
 const photoIndexes = {};
 
@@ -239,7 +237,6 @@ function buildVintedDomainOptions(selected) {
   return placeholder + rows;
 }
 
-/* ── Tab navigation ─────────────────────────────────────────────────────────── */
 document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     setActiveTopTab(btn.dataset.tab);
@@ -304,7 +301,6 @@ function loadCarsViewData() {
   if (currentCarView === "settings") loadSettings();
 }
 
-/* ── WebSocket ──────────────────────────────────────────────────────────────── */
 function connectWS() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${proto}://${location.host}`);
@@ -382,7 +378,6 @@ function connectWS() {
   };
 }
 
-/* ── Log terminal ───────────────────────────────────────────────────────────── */
 function appendLogLine(procName, line, ts) {
   if (!terminalBuffers[procName]) terminalBuffers[procName] = [];
   const div = document.createElement("div");
@@ -436,7 +431,6 @@ document.getElementById("logProcess")?.addEventListener("change", (e) => {
   flushTerminal();
 });
 
-/* ── Process grid ───────────────────────────────────────────────────────────── */
 function renderProcessGrid() {
   const container = document.getElementById("processGrid");
   if (!container) return;
@@ -466,7 +460,6 @@ function renderProcessGrid() {
   container.appendChild(card);
 }
 
-/* ── Status ─────────────────────────────────────────────────────────────────── */
 async function refreshStatus() {
   try {
     const data = await fetch("/api/status").then((r) => r.json());
@@ -529,7 +522,6 @@ function goToLogs(name) {
   flushTerminal();
 }
 
-/* ── Shared marketplace tabs ───────────────────────────────────────────────── */
 function normalizeSharedConfig(config = {}) {
   return {
     ...DEFAULT_SHARED_CONFIG,
@@ -588,6 +580,80 @@ function updateLocationBanner() {
   const banner = document.getElementById("locationBanner");
   if (!banner) return;
   banner.hidden = !sharedConfigNeedsLocationReview();
+}
+
+let locationMap = null;     // Leaflet instance
+let locationMarker = null; // Current marker on map
+
+async function autoDetectLocation() {
+  const btn = document.getElementById("autoDetectBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Detecting..."; }
+  try {
+    const res = await fetch("/api/geoip");
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || "Failed");
+    const { latitude, longitude, city, regionName, countryCode } = data.location;
+    document.getElementById("sharedLatitude").value = latitude ?? "";
+    document.getElementById("sharedLongitude").value = longitude ?? "";
+    const label = document.getElementById("detectedCityLabel");
+    if (label) {
+      label.textContent = [city, regionName, countryCode].filter(Boolean).join(", ");
+      label.hidden = false;
+    }
+    if (locationMap && latitude && longitude) {
+      locationMap.setView([latitude, longitude], 10);
+      setLocationMarker(latitude, longitude);
+    }
+    showToast(`Location detected: ${city || "unknown"}`);
+  } catch (err) {
+    showToast(`Auto-detect failed: ${err.message}`, "err");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Auto-detect"; }
+  }
+}
+
+function toggleLocationMap() {
+  const container = document.getElementById("locationMap");
+  if (!container) return;
+  const btn = document.getElementById("pickMapBtn");
+  if (container.style.display === "block") {
+    container.style.display = "none";
+    if (btn) btn.textContent = "Pick on Map";
+    return;
+  }
+  container.style.display = "block";
+  if (btn) btn.textContent = "Hide Map";
+  if (locationMap) { locationMap.invalidateSize(); return; }
+  const lat = parseFloat(document.getElementById("sharedLatitude")?.value) || 39.8283;
+  const lng = parseFloat(document.getElementById("sharedLongitude")?.value) || -98.5795;
+  locationMap = L.map(container).setView([lat, lng], 10);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+    maxZoom: 18,
+  }).addTo(locationMap);
+  locationMap.on("click", async (e) => {
+    const { lat, lng } = e.latlng;
+    setLocationMarker(lat, lng);
+    document.getElementById("sharedLatitude").value = lat.toFixed(6);
+    document.getElementById("sharedLongitude").value = lng.toFixed(6);
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`, {
+        headers: { "Accept-Language": "en" },
+      });
+      const geo = await res.json();
+      const label = document.getElementById("detectedCityLabel");
+      if (label && geo?.display_name) {
+        label.textContent = geo.display_name.split(",").slice(0, 3).join(", ");
+        label.hidden = false;
+      }
+    } catch {}
+  });
+  if (lat && lng) setLocationMarker(lat, lng);
+}
+
+function setLocationMarker(lat, lng) {
+  if (locationMarker) locationMarker.remove();
+  locationMarker = L.marker([lat, lng]).addTo(locationMap);
 }
 
 function openLocationSettings() {
@@ -1251,13 +1317,27 @@ function renderSharedSettings() {
               ${buildDisplayCurrencyOptions(config.displayCurrency)}
             </select>
           </div>
-          <div class="form-field">
-            <label for="sharedLatitude">Latitude</label>
-            <input id="sharedLatitude" class="quick-input" type="number" step="0.0001" value="${escAttr(config.location?.latitude ?? "")}" />
+          <div class="location-row">
+            <div class="form-field">
+              <label for="sharedLatitude">Latitude</label>
+              <input id="sharedLatitude" class="quick-input" type="number" step="0.0001" value="${escAttr(config.location?.latitude ?? "")}" />
+            </div>
+            <div class="form-field">
+              <label for="sharedLongitude">Longitude</label>
+              <input id="sharedLongitude" class="quick-input" type="number" step="0.0001" value="${escAttr(config.location?.longitude ?? "")}" />
+            </div>
+            <div class="location-actions">
+              <button type="button" class="btn-auto" id="autoDetectBtn" onclick="autoDetectLocation()">Auto-detect</button>
+              <button type="button" class="btn-map" id="pickMapBtn" onclick="toggleLocationMap()">Pick on Map</button>
+            </div>
           </div>
-          <div class="form-field">
-            <label for="sharedLongitude">Longitude</label>
-            <input id="sharedLongitude" class="quick-input" type="number" step="0.0001" value="${escAttr(config.location?.longitude ?? "")}" />
+          <div class="detected-city" id="detectedCityLabel" hidden>${escHtml(config.location?.label || "")}</div>
+          <div id="locationMap"></div>
+          <div class="location-confirm-row">
+            <label>
+              <input type="checkbox" id="sharedLocationConfirmed" ${config.location?.confirmed ? "checked" : ""} />
+              Confirm Location
+            </label>
           </div>
           <div class="form-field form-field-wide">
             <label for="sharedFbMarketplaceUrl">Facebook Marketplace Location URL</label>
@@ -1357,11 +1437,14 @@ function readSharedSettingsForm() {
   const lngNum = rawLng === "" ? null : Number(rawLng);
   const latValid = latNum !== null && Number.isFinite(latNum);
   const lngValid = lngNum !== null && Number.isFinite(lngNum);
+  const confirmed = document.getElementById("sharedLocationConfirmed")?.checked || (latValid && lngValid);
+  const detectedCity = document.getElementById("detectedCityLabel")?.textContent || "";
   const location = {
     latitude: latValid ? latNum : null,
     longitude: lngValid ? lngNum : null,
+    confirmed,
+    label: detectedCity || base.location?.label || "",
   };
-  location.confirmed = latValid && lngValid;
 
   const fbMarketplaceLocationUrl = (document.getElementById("sharedFbMarketplaceUrl")?.value || "").trim();
   const fbIdMatch = fbMarketplaceLocationUrl.match(/facebook\.com\/marketplace\/(\d{6,})(?:\/|\?|$)/i);
@@ -1678,7 +1761,6 @@ function clearSharedGradeFilter(platform) {
   renderMarketplaceTab(platform);
 }
 
-/* ── Watchlist ──────────────────────────────────────────────────────────────── */
 async function loadWatchlist() {
   watchlist = await fetch("/api/watchlist").then((r) => r.json());
   syncTargetGroups();
@@ -1756,7 +1838,6 @@ function renderWatchlist() {
   }).join("");
 }
 
-/* ── Found deals ────────────────────────────────────────────────────────────── */
 async function loadFoundDeals() {
   foundDeals = await fetch("/api/found").then((r) => r.json());
   foundListingsLoaded.cars = true;
@@ -1966,7 +2047,6 @@ function buildCarCard(deal, dealIndex) {
     </article>`;
 }
 
-/* ── Photo carousel ─────────────────────────────────────────────────────────── */
 function cyclePhoto(event, wrap, step = 1) {
   if (event) event.stopPropagation();
   const id = wrap.dataset.cardId;
@@ -1988,7 +2068,6 @@ function cyclePhoto(event, wrap, step = 1) {
   if (count) count.textContent = `${idx + 1} / ${photos.length}`;
 }
 
-/* ── Rejected deals ─────────────────────────────────────────────────────────── */
 async function loadRejectedDeals() {
   rejectedDeals = await fetch("/api/rejected").then((r) => r.json());
   renderRejectedDeals();
@@ -2144,7 +2223,6 @@ function closeDealModal() {
   document.getElementById("dealModal").classList.remove("open");
 }
 
-/* ── Settings ───────────────────────────────────────────────────────────────── */
 async function loadSettings() {
   try {
     const data = await fetchJson("/api/settings");
@@ -2473,7 +2551,6 @@ async function resetMemory() {
   }
 }
 
-/* ── Group filters ──────────────────────────────────────────────────────────── */
 const groupFilterHandlers = {};
 
 function renderGroupFilters(containerId, current, onSelect, counts = {}) {
@@ -2492,7 +2569,6 @@ function setGroupFilter(containerId, value) {
   if (groupFilterHandlers[containerId]) groupFilterHandlers[containerId](value);
 }
 
-/* ── Helpers ────────────────────────────────────────────────────────────────── */
 function getTargetGroup(deal)    { return deal.target?.group || "General"; }
 function getRejectedGroup(deal)  { return deal.target_group  || "General"; }
 
@@ -2759,12 +2835,10 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, parsed));
 }
 
-/* ── Search / filter listeners ──────────────────────────────────────────────── */
 document.getElementById("foundSearch")?.addEventListener("input", renderFoundDeals);
 document.getElementById("verdictFilter")?.addEventListener("change", renderFoundDeals);
 document.getElementById("rejectedSearch")?.addEventListener("input", renderRejectedDeals);
 
-/* ── Periodic refresh ───────────────────────────────────────────────────────── */
 function refreshVisible() {
   if (document.visibilityState !== "visible") return;
   if (currentTopTab === "cars") {
@@ -2784,7 +2858,6 @@ function refreshVisible() {
   }
 }
 
-/* ── Add Target Drawer ──────────────────────────────────────────────────────── */
 const MANUAL_TARGET_TEMPLATE = {
   id: "my-target",
   label: "My Target",
@@ -2901,7 +2974,6 @@ function setDrawerStatus(msg, tone = "") {
   el.className = `drawer-status ${tone}`.trim();
 }
 
-/* ── Escape handler ─────────────────────────────────────────────────────────── */
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     closeAddTarget();
@@ -2927,7 +2999,6 @@ function trackEditorDirtyState(event) {
 document.addEventListener("input", trackEditorDirtyState);
 document.addEventListener("change", trackEditorDirtyState);
 
-/* ── Boot ───────────────────────────────────────────────────────────────────── */
 connectWS();
 refreshStatus();
 loadFoundDeals();
