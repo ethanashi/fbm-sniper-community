@@ -1,6 +1,12 @@
 # FBM Sniper Community
 
-An open-source desktop marketplace sniper that now ships with:
+An open-source desktop marketplace sniper that runs entirely on your machine.
+
+## Join the Discord → [discord.gg/dWWaSxuxdU](https://discord.gg/dWWaSxuxdU)
+
+Setup help, flip examples, and extra tips and tricks for flipping you won't find in the docs. Members made over **$30k last week**. Get in and start sniping with the rest of us.
+
+## What it ships with
 
 - Cars on Facebook Marketplace
 - Facebook electronics sniper
@@ -8,22 +14,13 @@ An open-source desktop marketplace sniper that now ships with:
 - Vinted electronics sniper
 - Optional Discord deal routing
 
-Everything runs locally on your machine.
-
-## Join the Discord
-
-If you want setup help, examples, and a place to share flips, jump into the community Discord:
-
-**→ [Discord Join Link](https://discord.gg/dWWaSxuxdU)**
-
-
 ## What v2 adds
 
 - New shared multi-platform watchlist for Facebook, Wallapop, and Vinted
 - Dedicated tabs for `Facebook`, `Wallapop`, and `Vinted`
 - Shared settings for Discord webhooks, bot toggles, poll intervals, and Vinted cookie input
-- **Worldwide Vinted support** — pick your country (US, UK, FR, DE, IT, NL, PL, PT, etc.) and the bot hits the right domain
-- **Location is now user-configurable** — no more Spain-only defaults; set your own city + coordinates in Settings
+- **Worldwide Vinted support**, pick your country (US, UK, FR, DE, IT, NL, PL, PT, etc.) and the bot hits the right domain
+- **Location is now user-configurable**, no more Spain-only defaults; set your own city + coordinates in Settings
 - Discord alerts routed to `All`, `Buy Now`, and `Maybe` webhooks
 - Discord alerts are optional; the app still runs normally without any webhook configured
 
@@ -60,6 +57,8 @@ Then open it again.
 
 The Windows build is unsigned, so SmartScreen may show a warning. Click **More info** and then **Run anyway**.
 
+> Stuck on install? Drop a message in the [Discord](https://discord.gg/dWWaSxuxdU) and we'll walk you through it.
+
 ## First launch
 
 1. Open the app.
@@ -84,7 +83,7 @@ Leaving all three blank disables Discord delivery without affecting the snipers.
 
 Vinted runs a separate site per country (`www.vinted.es`, `.fr`, `.de`, `.co.uk`, `.com`, etc.). The Vinted bot won't start until you pick your country from the dropdown in `Settings → Vinted`. Supported countries: United States, Spain, France, Germany, United Kingdom, Italy, Netherlands, Belgium, Poland, Czechia, Slovakia, Austria, Portugal, Luxembourg, Lithuania, Finland, Sweden, Denmark, Hungary, Croatia, Greece, Romania, Ireland.
 
-A manual cookie is optional — the bot auto-fetches one from whatever country you pick. If you want to supply your own (stronger bypass), the value must include `access_token_web=...` **from the same Vinted country domain you selected**.
+A manual cookie is optional, the bot auto-fetches one from whatever country you pick. If you want to supply your own (stronger bypass), the value must include `access_token_web=...` **from the same Vinted country domain you selected**.
 
 Quick way to get it:
 
@@ -95,6 +94,8 @@ Quick way to get it:
 5. Paste it into the Vinted cookie field in `Settings`, or export it as `VINTED_COOKIE`.
 
 If you do nothing, the bot still attempts automatic cookie refresh on its own.
+
+> The cookie step trips people up the most. If yours isn't working, post in the [Discord](https://discord.gg/dWWaSxuxdU) and someone will sort you out fast.
 
 ## Environment variables
 
@@ -163,6 +164,12 @@ build/        electron-builder hooks and local packaging helpers
 docs/         Specs, plans, and guides
 ```
 
+## Community & support
+
+The fastest way to get help, see real flips, and pick up extra tips and tricks for flipping is the Discord. Members made over **$30k last week**.
+
+**→ [Join the Discord](https://discord.gg/dWWaSxuxdU)**
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
